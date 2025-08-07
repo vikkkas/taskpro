@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { AuthState, User } from '@/types/auth';
+import { clearAuthToken } from '@/utils/BasicApi';
 
 interface AuthContextType extends AuthState {
   login: (user: User) => void;
@@ -38,6 +39,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       user: null,
       isAuthenticated: false,
     });
+    clearAuthToken();
   };
 
   return (

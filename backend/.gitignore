@@ -54,3 +54,8 @@ Thumbs.db
 # Build files
 dist/
 build/
+
+.env*
+.flaskenv*
+!.env.project
+!.env.vault

@@ -1,54 +1,63 @@
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAuth } from '@/contexts/AuthContext';
-import { users } from '@/data/staticData';
-import { UserRole } from '@/types/auth';
-import { useToast } from '@/hooks/use-toast';
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
+import { users } from "@/data/staticData";
+import { UserRole } from "@/types/auth";
+import { useToast } from "@/hooks/use-toast";
+import { postAPI, setAuthToken } from "@/utils/BasicApi";
+import { AUTH } from "@/utils/apiURL";
+import { set } from "date-fns";
 
 export const LoginForm = () => {
-  const [email, setEmail] = useState('');
-  const [selectedRole, setSelectedRole] = useState<UserRole>('team-member');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [selectedRole, setSelectedRole] = useState<UserRole>("team-member");
+  const [Loading, setLoading] = useState(false);
   const { login } = useAuth();
   const { toast } = useToast();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async(e: React.FormEvent) => {
+    setLoading(true);
     e.preventDefault();
-    
-    // Find user by email or create demo user
-    let user = users.find(u => u.email === email);
-    
-    if (!user && email) {
-      // Create demo user for any email
-      user = {
-        id: Date.now().toString(),
-        name: email.split('@')[0],
-        email,
-        role: selectedRole,
-        department: selectedRole === 'admin' ? 'Management' : 'General',
-      };
-    }
-    
-    if (user) {
-      login({ ...user, role: selectedRole });
+    try{
+      const response = await postAPI(AUTH.LOGIN, { email, password, role: selectedRole });
+      setAuthToken(response.data.data.token);
+      login(response.data.data);
       toast({
-        title: "Welcome!",
-        description: `Logged in as ${selectedRole}`,
+        title: "Login Successful",
+        description: `Welcome back, ${response.data.data.name}!`,
       });
-    } else {
+    }
+    catch (error) {
+      console.error("Login error:", error);
       toast({
-        title: "Error",
-        description: "Please enter a valid email",
+        title: "Login Failed",
+        description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDemoLogin = (role: UserRole) => {
-    const demoUser = users.find(u => u.role === role) || users[0];
+    const demoUser = users.find((u) => u.role === role) || users[0];
     login(demoUser);
     toast({
       title: "Demo Login",
@@ -80,10 +89,21 @@ export const LoginForm = () => {
                 required
               />
             </div>
-            
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
             <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
-              <Select value={selectedRole} onValueChange={(value: UserRole) => setSelectedRole(value)}>
+              <Select
+                value={selectedRole}
+                onValueChange={(value: UserRole) => setSelectedRole(value)}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -94,11 +114,12 @@ export const LoginForm = () => {
               </Select>
             </div>
 
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full bg-gradient-primary hover:shadow-glow transition-all duration-300"
+              disabled={Loading}
             >
-              Login
+              {Loading ? "Logging in..." : "Login"}
             </Button>
           </form>
 
@@ -107,21 +128,23 @@ export const LoginForm = () => {
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">Or try demo</span>
+              <span className="bg-card px-2 text-muted-foreground">
+                Or try demo
+              </span>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Button 
-              variant="outline" 
-              onClick={() => handleDemoLogin('admin')}
+            <Button
+              variant="outline"
+              onClick={() => handleDemoLogin("admin")}
               className="text-sm"
             >
               Demo Admin
             </Button>
-            <Button 
-              variant="outline" 
-              onClick={() => handleDemoLogin('team-member')}
+            <Button
+              variant="outline"
+              onClick={() => handleDemoLogin("team-member")}
               className="text-sm"
             >
               Demo Team
