@@ -29,7 +29,7 @@ export const CreateTaskModal = ({ open, onOpenChange, users, onCreateTask }: Cre
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
-  const [assignee, setAssignee] = useState('');
+  const [assignee, setAssignee] = useState('unassigned');
   const [dueDate, setDueDate] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
@@ -74,13 +74,13 @@ export const CreateTaskModal = ({ open, onOpenChange, users, onCreateTask }: Cre
       return;
     }
 
-    const taskAssignee = user?.role === 'admin' && assignee ? assignee : getUserId(user!);
+    const taskAssignee = user?.role === 'admin' && assignee && assignee !== 'unassigned' ? assignee : getUserId(user!);
 
     onCreateTask({
       title: title.trim(),
       description: description.trim(),
       priority,
-      assignee: taskAssignee,
+      assignee: assignee === 'unassigned' ? '' : taskAssignee,
       dueDate: dueDate || undefined,
       tags,
     });
@@ -89,7 +89,7 @@ export const CreateTaskModal = ({ open, onOpenChange, users, onCreateTask }: Cre
     setTitle('');
     setDescription('');
     setPriority('medium');
-    setAssignee('');
+    setAssignee('unassigned');
     setDueDate('');
     setTags([]);
     setTagInput('');
@@ -158,7 +158,7 @@ export const CreateTaskModal = ({ open, onOpenChange, users, onCreateTask }: Cre
                     <SelectValue placeholder="Select team member" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Unassigned</SelectItem>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
                     {users.map((member) => {
                       const userId = getUserId(member);
                       return (

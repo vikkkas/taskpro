@@ -230,6 +230,12 @@ export const Dashboard = () => {
     dueDate?: string;
     tags: string[];
   }) => {
+    // Prepare the task data for backend (convert empty assignee to null/undefined)
+    const backendTaskData = {
+      ...taskData,
+      assignee: taskData.assignee || undefined,
+    };
+
     const newTask: Task = {
       _id: Date.now().toString(),
       ...taskData,
@@ -243,7 +249,7 @@ export const Dashboard = () => {
     };
 
     try{
-      const response = await postAPI(TASK.CREATE, newTask);
+      const response = await postAPI(TASK.CREATE, backendTaskData);
     }
     catch(error) {
     }

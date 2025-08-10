@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Task, TaskPriority, TaskStatus } from '@/types/task';
 import { User } from '@/types/auth';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface EditTaskModalProps {
   task: Task;
@@ -18,14 +19,16 @@ interface EditTaskModalProps {
 }
 
 export const EditTaskModal = ({ task, users, isOpen, onClose, onUpdateTask }: EditTaskModalProps) => {
+  const { user } = useAuth();
+  
   // Handle assignee - convert object to string ID if needed
   const getAssigneeId = (assignee: any): string => {
     if (typeof assignee === 'string') {
-      return assignee;
+      return assignee || 'unassigned';
     } else if (assignee && typeof assignee === 'object') {
-      return assignee._id || assignee.id || '';
+      return assignee._id || assignee.id || 'unassigned';
     }
-    return '';
+    return 'unassigned';
   };
 
   const [formData, setFormData] = useState({
@@ -57,7 +60,7 @@ export const EditTaskModal = ({ task, users, isOpen, onClose, onUpdateTask }: Ed
       description: formData.description.trim(),
       priority: formData.priority,
       status: formData.status,
-      assignee: formData.assignee,
+      assignee: formData.assignee === 'unassigned' ? undefined : formData.assignee,
       dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
       tags: formData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
       updatedAt: new Date().toISOString(),
@@ -135,32 +138,34 @@ export const EditTaskModal = ({ task, users, isOpen, onClose, onUpdateTask }: Ed
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="assignee">Assignee</Label>
-            <Select value={formData.assignee} onValueChange={(value) => handleInputChange('assignee', value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select assignee" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">Unassigned</SelectItem>
-                {users.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    <div className="flex items-center gap-2">
-                      <img
-                        src={user.avatar}
-                        alt={user.name}
-                        className="w-5 h-5 rounded-full"
-                      />
-                      <span>{user.name}</span>
-                      {user.department && (
-                        <span className="text-muted-foreground">({user.department})</span>
-                      )}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {user?.role === 'admin' && (
+            <div className="space-y-2">
+              <Label htmlFor="assignee">Assignee</Label>
+              <Select value={formData.assignee} onValueChange={(value) => handleInputChange('assignee', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select assignee" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={user.avatar}
+                          alt={user.name}
+                          className="w-5 h-5 rounded-full"
+                        />
+                        <span>{user.name}</span>
+                        {user.department && (
+                          <span className="text-muted-foreground">({user.department})</span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="dueDate">Due Date</Label>
