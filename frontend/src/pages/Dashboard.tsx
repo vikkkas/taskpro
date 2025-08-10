@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Header } from '@/components/layout/Header';
 import { TaskCard } from '@/components/tasks/TaskCard';
+import { TaskCardSkeleton } from '@/components/tasks/TaskCardSkeleton';
 import { CreateTaskModal } from '@/components/tasks/CreateTaskModal';
 import { KanbanBoard } from '@/components/tasks/KanbanBoard';
 import { SessionsList } from '@/components/tasks/SessionsList';
@@ -15,7 +16,11 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Task, TaskStatus, TaskPriority } from '@/types/task';
-import { tasks as initialTasks, users } from '@/data/staticData';
+import { User } from '@/types/auth';
+import { getAPI, postAPI, putAPI, deleteAPI, postAPIWithoutBody } from '@/utils/BasicApi';
+import { TASK, USERS } from '@/utils/apiURL';
+import { useToast } from '@/hooks/use-toast';
+
 import { 
   Plus, 
   Search, 
@@ -30,12 +35,12 @@ import {
   LayoutGrid,
   List
 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 
 export const Dashboard = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
@@ -44,13 +49,41 @@ export const Dashboard = () => {
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
   const [showSessionsModal, setShowSessionsModal] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Helper function to get user ID (handles both _id and id)
+  const getUserId = (user: User): string => user._id || user.id || '';
+  const getCurrentUserId = (): string => {
+    if (!user) return '';
+    return user._id || user.id || '';
+  };
 
   // Filter tasks based on user role
   const userTasks = useMemo(() => {
-    if (user?.role === 'admin') {
+    if (!user) {
+      return [];
+    }
+    
+    if (user.role === 'admin') {
       return tasks;
     }
-    return tasks.filter(task => task.assignee === user?.id);
+    
+    const currentUserId = getCurrentUserId();
+    
+    const filtered = tasks.filter(task => {
+      // Handle both string and object assignees
+      let assigneeId = null;
+      
+      if (typeof task.assignee === 'string') {
+        assigneeId = task.assignee;
+      } else if (task.assignee && typeof task.assignee === 'object') {
+        assigneeId = task.assignee._id || task.assignee.id;
+      }
+      
+      return assigneeId === currentUserId;
+    });
+    
+    return filtered;
   }, [tasks, user]);
 
   // Filter tasks by selected user (admin only)
@@ -58,10 +91,50 @@ export const Dashboard = () => {
     if (user?.role !== 'admin' || selectedUserId === 'all') {
       return userTasks;
     }
-    return userTasks.filter(task => task.assignee === selectedUserId);
+    
+    // Filter tasks by the selected user ID
+    const filtered = userTasks.filter(task => {
+      // Handle both string and object assignees
+      let assigneeId = null;
+      
+      if (typeof task.assignee === 'string') {
+        assigneeId = task.assignee;
+      } else if (task.assignee && typeof task.assignee === 'object') {
+        assigneeId = task.assignee._id || task.assignee.id;
+      }
+      
+      return assigneeId === selectedUserId;
+    });
+    
+    return filtered;
   }, [userTasks, selectedUserId, user?.role]);
 
-  // Apply filters
+  // Apply filters to active tasks (non-completed)
+  const filteredActiveTasks = useMemo(() => {
+    return adminFilteredTasks.filter(task => {
+      const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           task.description.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
+      const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
+      const isNotCompleted = task.status !== 'completed';
+      
+      return matchesSearch && matchesStatus && matchesPriority && isNotCompleted;
+    });
+  }, [adminFilteredTasks, searchQuery, statusFilter, priorityFilter]);
+
+  // Apply filters to completed tasks
+  const filteredCompletedTasks = useMemo(() => {
+    return adminFilteredTasks.filter(task => {
+      const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           task.description.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
+      const isCompleted = task.status === 'completed';
+      
+      return matchesSearch && matchesPriority && isCompleted;
+    });
+  }, [adminFilteredTasks, searchQuery, priorityFilter]);
+
+  // Keep original filteredTasks for backward compatibility
   const filteredTasks = useMemo(() => {
     return adminFilteredTasks.filter(task => {
       const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -75,17 +148,20 @@ export const Dashboard = () => {
 
   // Calculate statistics
   const stats = useMemo(() => {
-    const totalTasks = userTasks.length;
-    const completedTasks = userTasks.filter(t => t.status === 'completed').length;
-    const inProgressTasks = userTasks.filter(t => t.status === 'in-progress').length;
-    const activeTasks = userTasks.filter(t => t.isTimerRunning).length;
-    const overdueTasks = userTasks.filter(t => 
+    // Use adminFilteredTasks for calculations to reflect current filter
+    const tasksForStats = user?.role === 'admin' ? adminFilteredTasks : userTasks;
+    
+    const totalTasks = tasksForStats.length;
+    const completedTasks = tasksForStats.filter(t => t.status === 'completed').length;
+    const inProgressTasks = tasksForStats.filter(t => t.status === 'in-progress').length;
+    const activeTasks = tasksForStats.filter(t => t.isTimerRunning).length;
+    const overdueTasks = tasksForStats.filter(t => 
       t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'completed'
     ).length;
-    const totalTimeSpent = userTasks.reduce((total, task) => total + task.timeSpent, 0);
+    const totalTimeSpent = tasksForStats.reduce((total, task) => total + task.timeSpent, 0);
 
     if (user?.role === 'admin') {
-      const activeUsers = [...new Set(userTasks.map(t => t.assignee))].length;
+      const activeUsers = [...new Set(tasksForStats.map(t => t.assignee))].length;
       return {
         totalTasks,
         activeUsers,
@@ -100,9 +176,53 @@ export const Dashboard = () => {
       inProgressTasks,
       overdueTasks,
     };
-  }, [userTasks, user?.role]);
+  }, [adminFilteredTasks, userTasks, user?.role]);
+  
+  useEffect(() => {
+    if (user) {  // Only fetch when user is available
+      getAllTasks();
+      if (user.role === 'admin') {
+        fetchUsers();
+      }
+    }
+  }, [user])
+  
+  const fetchUsers = async () => {
+    try {
+      const response = await getAPI(USERS.FETCH);
+      // Transform users to ensure they have consistent ID format
+      const transformedUsers = response.data.map((user: any) => ({
+        ...user,
+        id: user._id || user.id, // Ensure id field exists for backward compatibility
+      }));
+      setUsers(transformedUsers);
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+      toast({
+        title: "Warning",
+        description: "Failed to load users. Some features may be limited.",
+        variant: "destructive",
+      });
+    }
+  }
 
-  const handleCreateTask = (taskData: {
+  const getAllTasks = async () => {
+    setLoading(true);
+    try {
+      const response = await getAPI(TASK.FETCH);
+      setTasks(response.data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description:error?.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const handleCreateTask = async(taskData: {
     title: string;
     description: string;
     priority: TaskPriority;
@@ -111,7 +231,7 @@ export const Dashboard = () => {
     tags: string[];
   }) => {
     const newTask: Task = {
-      id: Date.now().toString(),
+      _id: Date.now().toString(),
       ...taskData,
       status: 'todo',
       createdAt: new Date().toISOString(),
@@ -122,15 +242,115 @@ export const Dashboard = () => {
       comments: []
     };
 
+    try{
+      const response = await postAPI(TASK.CREATE, newTask);
+    }
+    catch(error) {
+    }
+
     setTasks(prev => [newTask, ...prev]);
   };
 
-  const handleUpdateTask = (taskId: string, updates: Partial<Task>) => {
-    setTasks(prev => prev.map(task => 
-      task.id === taskId 
+  const handleUpdateTask = async(taskId: string, updates: Partial<Task>) => {
+    try{
+      const task = tasks.find(t => t._id === taskId);
+      if (!task) {
+        throw new Error('Task not found');
+      }
+      
+      // Update task in the backend
+      const response = await putAPI(TASK.UPDATE(taskId), { ...task, ...updates });
+      if(response?.success) {
+        toast({
+          title: "Success",
+          description: "Task updated successfully",
+        });
+    }}
+    catch(error) {
+      // toast({
+      //   title: "Error",
+      //   description: error?.message,
+      //   variant: "destructive",
+      // });
+    }
+    setTasks(prev => prev.map(  task => 
+      task._id === taskId 
         ? { ...task, ...updates, updatedAt: new Date().toISOString() }
         : task
     ));
+  };
+
+  const handleDeleteTask = async(taskId: string) => {
+    try{
+      const task = tasks.find(t => t._id === taskId);
+      if (!task) {
+        throw new Error('Task not found');
+      }
+      
+      // Delete task in the backend
+      const response = await deleteAPI(TASK.DELETE(taskId));
+
+      // @ts-ignore 
+      if(response?.success) {
+        toast({
+          title: "Success",
+          description: "Task deleted successfully",
+      });
+    }}
+    catch(error) {
+      toast({
+        title: "Error",
+        description: error?.message,
+        variant: "destructive",
+      });
+    }
+    setTasks(prev => prev.filter(task => task._id !== taskId));
+  };
+
+  const handleStartTimer = async (taskId: string) => {
+    try {
+      const response = await postAPIWithoutBody(TASK.TIMER_START(taskId));
+      if (response.data?.success) {
+        toast({
+          title: "Success",
+          description: "Timer started successfully",
+        });
+        setTasks(prev => prev.map(task =>
+          task._id === taskId
+            ? { ...task, ...response.data.data, status: 'in-progress' as TaskStatus, updatedAt: new Date().toISOString() }
+            : task
+        ));
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error?.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleStopTimer = async (taskId: string) => {
+    try {
+      const response = await postAPIWithoutBody(TASK.TIMER_STOP(taskId));
+      if (response.data?.success) {
+        toast({
+          title: "Success",
+          description: "Timer stopped successfully",
+        });
+        setTasks(prev => prev.map(task =>
+          task._id === taskId
+            ? { ...task, ...response.data.data, updatedAt: new Date().toISOString() }
+            : task
+        ));
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error?.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const clearFilters = () => {
@@ -156,7 +376,7 @@ export const Dashboard = () => {
             <h1 className="text-3xl font-bold">
               {user?.role === 'admin' ? 'Team Overview' : 'My Tasks'}
             </h1>
-            <p className="text-muted-foreground mt-1">
+            <p className="mt-1 text-muted-foreground">
               {user?.role === 'admin' 
                 ? 'Monitor team progress and track all tasks' 
                 : 'Manage your tasks and track your progress'
@@ -165,30 +385,28 @@ export const Dashboard = () => {
           </div>
           
           <div className="flex gap-2">
-            {user?.role === 'admin' && (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={viewMode === 'list' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('list')}
-                >
-                  <List className="w-4 h-4 mr-1" />
-                  List
-                </Button>
-                <Button
-                  variant={viewMode === 'kanban' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('kanban')}
-                >
-                  <LayoutGrid className="w-4 h-4 mr-1" />
-                  Kanban
-                </Button>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('list')}
+              >
+                <List className="w-4 h-4 mr-1" />
+                List
+              </Button>
+              <Button
+                variant={viewMode === 'kanban' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('kanban')}
+              >
+                <LayoutGrid className="w-4 h-4 mr-1" />
+                Kanban
+              </Button>
+            </div>
             
             <Button 
               onClick={() => setShowCreateModal(true)}
-              className="bg-gradient-primary hover:shadow-glow transition-all duration-300"
+              className="transition-all duration-300 bg-gradient-primary hover:shadow-glow"
             >
               <Plus className="w-4 h-4 mr-2" />
               Create Task
@@ -197,7 +415,7 @@ export const Dashboard = () => {
         </div>
 
         {/* Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {user?.role === 'admin' ? (
             <>
               <StatsCard
@@ -260,6 +478,7 @@ export const Dashboard = () => {
         <CreateTaskModal
           open={showCreateModal}
           onOpenChange={setShowCreateModal}
+          users={users}
           onCreateTask={handleCreateTask}
         />
         
@@ -267,15 +486,16 @@ export const Dashboard = () => {
           open={showSessionsModal}
           onOpenChange={setShowSessionsModal}
           tasks={userTasks}
+          users={users}
           selectedUserId={user?.role === 'admin' ? selectedUserId : undefined}
           onUserFilterChange={user?.role === 'admin' ? setSelectedUserId : undefined}
         />
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          <div className="flex flex-col sm:flex-row gap-4 flex-1">
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="flex flex-col flex-1 gap-4 sm:flex-row">
             <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Search className="absolute w-4 h-4 transform -translate-y-1/2 left-3 top-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search tasks..."
                 value={searchQuery}
@@ -292,11 +512,18 @@ export const Dashboard = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Members</SelectItem>
-                    {users.map(u => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.name}
-                      </SelectItem>
-                    ))}
+                    {users.length === 0 ? (
+                      <SelectItem value="loading" disabled>Loading users...</SelectItem>
+                    ) : (
+                      users.map(u => {
+                        const userId = getUserId(u);
+                        return (
+                          <SelectItem key={userId} value={userId}>
+                            {u.name}
+                          </SelectItem>
+                        );
+                      })
+                    )}
                   </SelectContent>
                 </Select>
               )}
@@ -341,8 +568,9 @@ export const Dashboard = () => {
 
         {/* Main Content */}
         <Tabs defaultValue="tasks" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="tasks">Tasks</TabsTrigger>
+          <TabsList className={`grid w-full ${user?.role === 'admin' ? 'grid-cols-5' : 'grid-cols-4'}`}>
+            <TabsTrigger value="tasks">Active Tasks</TabsTrigger>
+            <TabsTrigger value="completed">Completed</TabsTrigger>
             <TabsTrigger value="sessions">Work Sessions</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             {user?.role === 'admin' && <TabsTrigger value="users">Team Management</TabsTrigger>}
@@ -351,70 +579,121 @@ export const Dashboard = () => {
           <TabsContent value="tasks" className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">
-                Tasks ({filteredTasks.length})
+                Active Tasks ({filteredActiveTasks.length})
               </h2>
             </div>
 
-          {filteredTasks.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                <Target className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-medium mb-2">No tasks found</h3>
-              <p className="text-muted-foreground mb-4">
-                {userTasks.length === 0 
-                  ? "Create your first task to get started"
-                  : "Try adjusting your filters to see more tasks"
-                }
-              </p>
-              {userTasks.length === 0 && (
-                <Button 
-                  onClick={() => setShowCreateModal(true)}
-                  className="bg-gradient-primary"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Task
-                </Button>
-              )}
+          {loading ? (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <TaskCardSkeleton key={index} />
+              ))}
             </div>
           ) : (
             <>
-              {user?.role === 'admin' && viewMode === 'kanban' ? (
-                <KanbanBoard
-                  tasks={filteredTasks}
-                  onUpdateTask={handleUpdateTask}
-                  selectedUserId={selectedUserId}
-                />
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredTasks.map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      onUpdateTask={handleUpdateTask}
-                      showAssignee={user?.role === 'admin'}
-                    />
-                  ))}
+              {/* Debug info */}
+              <div className="mb-2 text-xs text-gray-500">
+                Debug: Total tasks: {tasks.length}, User tasks: {userTasks.length}, 
+                Admin filtered: {adminFilteredTasks.length}, 
+                Final filtered: {filteredActiveTasks.length}, 
+                Loading: {loading.toString()}
+              </div>
+              
+              {filteredActiveTasks.length === 0 ? (
+                <div className="py-12 text-center">
+                  <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-muted">
+                    <Target className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="mb-2 text-lg font-medium">No active tasks found</h3>
+                  <p className="mb-4 text-muted-foreground">
+                    {userTasks.filter(t => t.status !== 'completed').length === 0 
+                      ? "Create your first task to get started"
+                      : "Try adjusting your filters to see more tasks"
+                    }
+                  </p>
+                  {userTasks.filter(t => t.status !== 'completed').length === 0 && (
+                    <Button 
+                      onClick={() => setShowCreateModal(true)}
+                      className="bg-gradient-primary"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Task
+                    </Button>
+                  )}
                 </div>
+              ) : (
+                <>
+                  {viewMode === 'kanban' ? (
+                        <KanbanBoard 
+                          tasks={filteredTasks} 
+                          onUpdateTask={handleUpdateTask}
+                          onDeleteTask={handleDeleteTask}
+                          selectedUserId={selectedUserId}
+                        />
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      {filteredActiveTasks.map((task) => (
+                            <TaskCard
+                              key={task._id}
+                              task={task}
+                              users={users}
+                              onUpdateTask={handleUpdateTask}
+                              onDeleteTask={handleDeleteTask}
+                              onStartTimer={handleStartTimer}
+                              onStopTimer={handleStopTimer}
+                              showAssignee={user?.role === 'admin'}
+                            />
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
           </TabsContent>
           
+          <TabsContent value="completed" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">
+                Completed Tasks ({filteredCompletedTasks.length})
+              </h2>
+            </div>
+
+            {filteredCompletedTasks.length === 0 ? (
+              <div className="py-12 text-center">
+                <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-muted">
+                  <CheckCircle className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <h3 className="mb-2 text-lg font-medium">No completed tasks</h3>
+                <p className="text-muted-foreground">
+                  Complete some tasks to see them here
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {filteredCompletedTasks.map((task) => (
+                  <TaskCard
+                    key={task._id}
+                    task={task}
+                    users={users}
+                    onUpdateTask={handleUpdateTask}
+                    onDeleteTask={handleDeleteTask}
+                    onStartTimer={handleStartTimer}
+                    onStopTimer={handleStopTimer}
+                    showAssignee={user?.role === 'admin'}
+                  />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+          
           <TabsContent value="sessions" className="space-y-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">Work Sessions</h2>
-              <Button 
-                onClick={() => setShowSessionsModal(true)}
-                variant="outline"
-                className="gap-2"
-              >
-                <Timer className="w-4 h-4" />
-                Open in Modal
-              </Button>
             </div>
             <SessionsList 
               tasks={userTasks}
+              users={users}
               selectedUserId={user?.role === 'admin' ? selectedUserId : undefined}
               onUserFilterChange={user?.role === 'admin' ? setSelectedUserId : undefined}
             />
@@ -423,11 +702,12 @@ export const Dashboard = () => {
           <TabsContent value="analytics" className="space-y-4">
             <TaskAnalytics 
               tasks={userTasks}
+              users={users}
               selectedUserId={user?.role === 'admin' ? selectedUserId : undefined}
               onUserFilterChange={user?.role === 'admin' ? setSelectedUserId : undefined}
             />
           </TabsContent>
-          
+
           {user?.role === 'admin' && (
             <TabsContent value="users" className="space-y-4">
               <UserManagement onUsersUpdate={() => {}} />

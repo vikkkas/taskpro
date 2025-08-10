@@ -75,8 +75,27 @@ export const postAPI = async <T = any>(
     const isFormData = payload instanceof FormData;
     const headers = getAuthHeaders(isFormData);
     url = import.meta.env.VITE_BACKEND_URI + url; // Ensure the URL is absolute 
-    console.log(`POST Request to ${url}`, url);
     const response = await axios.post<T>(url, payload, { headers });
+    return response;
+  } catch (error) {
+    handleApiError(error as AxiosError, `POST ${url}`);
+    throw error; // Ensure the error is re-thrown for further handling
+  }
+};
+
+/**
+ * Makes a POST request to the specified URL without a request body
+ * @param url - The endpoint URL
+ * @returns Promise containing the response data
+ */
+export const postAPIWithoutBody = async <T = any>(
+  url: string,
+  segment?: string
+): Promise<AxiosResponse<T>> => {
+  try {
+    const headers = getAuthHeaders();
+    url = import.meta.env.VITE_BACKEND_URI + url; // Ensure the URL is absolute
+    const response = await axios.post<T>(url, {}, { headers });
     return response;
   } catch (error) {
     handleApiError(error as AxiosError, `POST ${url}`);

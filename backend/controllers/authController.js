@@ -4,21 +4,15 @@ const { validationResult } = require('express-validator');
 
 // @desc    Register new user
 // @route   POST /api/auth/register
-// @access  Public
+// @access  Private/Admin only
 const registerUser = async (req, res) => {
   try {
     // Check for validation errors
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array()
-      });
-    }
 
     const { name, email, password, role, department } = req.body;
-
+    
+    // Use provided password or default password
+    const userPassword = password || process.env.NEW_USER_DEFAULT_PASSWORD || 'defaultPass123';
     // Check if user exists
     const userExists = await User.findOne({ email });
     if (userExists) {
@@ -32,7 +26,7 @@ const registerUser = async (req, res) => {
     const user = await User.create({
       name,
       email,
-      password,
+      password: userPassword,
       role: role || 'team-member',
       department
     });
@@ -46,7 +40,7 @@ const registerUser = async (req, res) => {
           email: user.email,
           role: user.role,
           department: user.department,
-          avatar: user.avatar,
+          // avatar: user.avatar,
           token: generateToken(user._id)
         }
       });
@@ -181,6 +175,68 @@ const updateUserProfile = async (req, res) => {
   }
 };
 
+// @desc    Change user password
+// @route   PUT /api/auth/change-password
+// @access  Private
+const changePassword = async (req, res) => {
+  try {
+    // Check for validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    // Get user with password field
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Verify current password
+    const isCurrentPasswordValid = await user.matchPassword(currentPassword);
+    if (!isCurrentPasswordValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+
+    // Check if new password is different from current
+    const isSamePassword = await user.matchPassword(newPassword);
+    if (isSamePassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be different from current password'
+      });
+    }
+
+    // Update password
+    user.password = newPassword;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during password change'
+    });
+  }
+};
+
 // @desc    Get all users
 // @route   GET /api/auth/users
 // @access  Private
@@ -203,10 +259,63 @@ const getAllUsers = async (req, res) => {
   }
 };
 
+// @desc    Delete user
+// @route   DELETE /api/auth/users/:id
+// @access  Private/Admin only
+const deleteUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Prevent admin from deleting themselves
+    if (user._id.toString() === req.user.id) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot delete your own account'
+      });
+    }
+
+    // Check if user is the only admin
+    if (user.role === 'admin') {
+      const adminCount = await User.countDocuments({ role: 'admin', isActive: true });
+      if (adminCount <= 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot delete the last admin user'
+        });
+      }
+    }
+
+    // Soft delete - set isActive to false instead of actually deleting
+    await User.findByIdAndUpdate(userId, { isActive: false });
+
+    res.json({
+      success: true,
+      message: `User ${user.name} has been deleted successfully`
+    });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during user deletion'
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
   getUserProfile,
   updateUserProfile,
-  getAllUsers
+  changePassword,
+  getAllUsers,
+  deleteUser
 };

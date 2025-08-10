@@ -6,11 +6,13 @@ import {
 } from '@/components/ui/dialog';
 import { SessionsList } from './SessionsList';
 import { Task } from '@/types/task';
+import { User } from '@/types/auth';
 
 interface SessionsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tasks: Task[];
+  users: User[];
   selectedUserId?: string;
   onUserFilterChange?: (userId: string) => void;
 }
@@ -18,7 +20,8 @@ interface SessionsModalProps {
 export const SessionsModal = ({ 
   open, 
   onOpenChange, 
-  tasks, 
+  tasks,
+  users,
   selectedUserId, 
   onUserFilterChange 
 }: SessionsModalProps) => {
@@ -31,6 +34,7 @@ export const SessionsModal = ({
         <div className="overflow-y-auto">
           <SessionsList 
             tasks={tasks}
+            users={users}
             selectedUserId={selectedUserId}
             onUserFilterChange={onUserFilterChange}
           />

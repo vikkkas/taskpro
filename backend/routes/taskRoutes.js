@@ -114,9 +114,6 @@ router.route('/:id')
   .put(updateTaskValidation, updateTask)
   .delete(deleteTask);
 
-// Archive route
-router.put('/:id/archive', archiveTask);
-
 // Timer routes
 router.post('/:id/timer/start', startTimer);
 router.post('/:id/timer/stop', stopTimer);

@@ -2,14 +2,14 @@ export type TaskStatus = 'todo' | 'in-progress' | 'completed';
 export type TaskPriority = 'low' | 'medium' | 'high';
 
 export interface WorkSession {
-  id: string;
+  _id: string;
   startTime: string;
   endTime?: string;
   duration: number; // in minutes
 }
 
 export interface TaskComment {
-  id: string;
+  _id: string;
   content: string;
   authorId: string;
   authorName: string;
@@ -18,12 +18,12 @@ export interface TaskComment {
 }
 
 export interface Task {
-  id: string;
+  _id: string;
   title: string;
   description: string;
   status: TaskStatus;
   priority: TaskPriority;
-  assignee: string; // User ID
+  assignee: string | { _id: string; id?: string; name: string; email: string; department: string; avatar?: string; } | undefined; // User ID or populated User object
   createdAt: string;
   updatedAt: string;
   dueDate?: string;

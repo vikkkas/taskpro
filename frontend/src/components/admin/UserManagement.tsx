@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,16 +8,18 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { User } from '@/types/auth';
-import { users as initialUsers } from '@/data/staticData';
 import { Plus, UserX, Mail, Building, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getAPI, postAPI, deleteAPI } from '@/utils/BasicApi';
+import { USERS } from '@/utils/apiURL';
 
 interface UserManagementProps {
   onUsersUpdate: (users: User[]) => void;
 }
 
 export const UserManagement = ({ onUsersUpdate }: UserManagementProps) => {
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newUser, setNewUser] = useState({
     name: '',
@@ -27,7 +29,34 @@ export const UserManagement = ({ onUsersUpdate }: UserManagementProps) => {
   });
   const { toast } = useToast();
 
-  const handleCreateUser = () => {
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const response = await getAPI(USERS.FETCH);
+      // Transform users to ensure they have consistent ID format
+      const transformedUsers = response.data.map((user: any) => ({
+        ...user,
+        id: user._id || user.id, // Ensure id field exists for backward compatibility
+      }));
+      setUsers(transformedUsers);
+      onUsersUpdate(transformedUsers);
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load users. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateUser = async() => {
     if (!newUser.name || !newUser.email || !newUser.department) {
       toast({
         title: "Error",
@@ -36,41 +65,82 @@ export const UserManagement = ({ onUsersUpdate }: UserManagementProps) => {
       });
       return;
     }
-
-    const user: User = {
-      id: Date.now().toString(),
-      ...newUser,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${newUser.name}`
-    };
-
-    const updatedUsers = [...users, user];
-    setUsers(updatedUsers);
-    onUsersUpdate(updatedUsers);
-    
-    setNewUser({ name: '', email: '', department: '', role: 'team-member' });
-    setShowCreateDialog(false);
-    
-    toast({
-      title: "Success",
-      description: `User ${user.name} has been created successfully`
-    });
+    try{
+      const response = await postAPI(USERS.REGISTER,{
+        name: newUser.name,
+        email: newUser.email,
+        department: newUser.department,
+        role: newUser.role,
+      });
+      
+      if(response){
+        toast({
+          title: "Success",
+          description: `User ${newUser.name} has been created successfully`
+        });
+        
+        // Refresh the user list
+        await fetchUsers();
+        
+        setNewUser({ name: '', email: '', department: '', role: 'team-member' });
+        setShowCreateDialog(false);
+      }
+    }
+    catch (error) {
+      console.error("Error creating user:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create user. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
   };
 
-  const handleDeleteUser = (userId: string) => {
+  const handleDeleteUser = async (userId: string) => {
     const userToDelete = users.find(u => u.id === userId);
     if (!userToDelete) return;
 
-    const updatedUsers = users.filter(u => u.id !== userId);
-    setUsers(updatedUsers);
-    onUsersUpdate(updatedUsers);
-    
-    toast({
-      title: "User Deleted",
-      description: `${userToDelete.name} has been removed from the team`
-    });
+    try {
+      // Call the delete API
+      await deleteAPI(USERS.DELETE(userId));
+      
+      // Refresh the user list after successful deletion
+      await fetchUsers();
+      
+      toast({
+        title: "User Deleted",
+        description: `${userToDelete.name} has been removed from the team`
+      });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete user. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const teamMembers = users.filter(u => u.role === 'team-member');
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building className="w-5 h-5" />
+            Team Management
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-8">
+            <div className="text-muted-foreground">Loading users...</div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>

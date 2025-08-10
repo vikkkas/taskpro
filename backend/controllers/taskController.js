@@ -270,45 +270,6 @@ const deleteTask = async (req, res) => {
   }
 };
 
-// @desc    Archive/Unarchive task
-// @route   PUT /api/tasks/:id/archive
-// @access  Private
-const archiveTask = async (req, res) => {
-  try {
-    const task = await Task.findById(req.params.id);
-
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        message: 'Task not found'
-      });
-    }
-
-    // Check permissions
-    if (req.user.role === 'team-member' && task.createdBy.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied'
-      });
-    }
-
-    task.isArchived = !task.isArchived;
-    await task.save();
-
-    res.json({
-      success: true,
-      data: task,
-      message: `Task ${task.isArchived ? 'archived' : 'unarchived'} successfully`
-    });
-  } catch (error) {
-    console.error('Archive task error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
-  }
-};
-
 // @desc    Start timer for task
 // @route   POST /api/tasks/:id/timer/start
 // @access  Private
@@ -524,7 +485,6 @@ module.exports = {
   createTask,
   updateTask,
   deleteTask,
-  archiveTask,
   startTimer,
   stopTimer,
   addComment,

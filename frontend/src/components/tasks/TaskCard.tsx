@@ -4,14 +4,22 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Task, TaskStatus, TaskPriority } from '@/types/task';
+import { User } from '@/types/auth';
 import { TaskComments } from './TaskComments';
-import { Play, Pause, Clock, Calendar, User, AlertCircle, MessageSquare } from 'lucide-react';
+import { EditTaskModal } from './EditTaskModal';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
+import { Play, Pause, Clock, Calendar, User as UserIcon, AlertCircle, MessageSquare, Edit, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { users } from '@/data/staticData';
+// import { users as defaultUsers } from '@/data/staticData';
 
 interface TaskCardProps {
   task: Task;
+  users?: User[];
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void;
+  onDeleteTask?: (taskId: string) => void;
+  onStartTimer: (taskId: string) => void;
+  onStopTimer: (taskId: string) => void;
   showAssignee?: boolean;
 }
 
@@ -27,9 +35,11 @@ const statusConfig = {
   completed: { color: 'bg-success text-success-foreground', label: 'Completed' },
 };
 
-export const TaskCard = ({ task, onUpdateTask, showAssignee = false }: TaskCardProps) => {
+export const TaskCard = ({ task, users , onUpdateTask, onDeleteTask, onStartTimer, onStopTimer, showAssignee = false }: TaskCardProps) => {
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [showComments, setShowComments] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const { toast } = useToast();
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(Date.now());
@@ -39,17 +49,28 @@ export const TaskCard = ({ task, onUpdateTask, showAssignee = false }: TaskCardP
   }, []);
 
   const calculateTimeSpent = () => {
-    let totalTime = task.timeSpent;
+    let totalSeconds = task.timeSpent * 60; // convert minutes to seconds
     
     if (task.isTimerRunning && task.timerStartedAt) {
-      const additionalTime = Math.floor((currentTime - new Date(task.timerStartedAt).getTime()) / 1000 / 60);
-      totalTime += additionalTime;
+      const additionalSeconds = Math.floor((currentTime - new Date(task.timerStartedAt).getTime()) / 1000);
+      totalSeconds += additionalSeconds;
     }
     
-    return totalTime;
+    return Math.floor(totalSeconds / 60); // return total minutes
   };
 
   const formatTime = (minutes: number) => {
+    if (task.isTimerRunning && task.timerStartedAt) {
+      let totalSeconds = task.timeSpent * 60;
+      const additionalSeconds = Math.floor((currentTime - new Date(task.timerStartedAt).getTime()) / 1000);
+      totalSeconds += additionalSeconds;
+      
+      const hours = Math.floor(totalSeconds / 3600);
+      const mins = Math.floor((totalSeconds % 3600) / 60);
+      const secs = totalSeconds % 60;
+      return `${hours}h ${mins}m`;
+    }
+
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return `${hours}h ${mins}m`;
@@ -57,45 +78,46 @@ export const TaskCard = ({ task, onUpdateTask, showAssignee = false }: TaskCardP
 
   const handleTimerToggle = () => {
     if (task.isTimerRunning) {
-      // Stop timer and create work session
-      const sessionStartTime = new Date(task.timerStartedAt!);
-      const sessionEndTime = new Date(currentTime);
-      const sessionDuration = Math.floor((sessionEndTime.getTime() - sessionStartTime.getTime()) / 1000 / 60);
-      
-      const newWorkSession = {
-        id: `${task.id}-${Date.now()}`,
-        startTime: task.timerStartedAt!,
-        endTime: sessionEndTime.toISOString(),
-        duration: sessionDuration,
-      };
-
-        onUpdateTask(task.id, {
-          isTimerRunning: false,
-          timeSpent: task.timeSpent + sessionDuration,
-          timerStartedAt: undefined,
-          status: 'in-progress' as TaskStatus,
-          workSessions: [...task.workSessions, newWorkSession],
-          comments: task.comments || []
-        });
+      onStopTimer(task._id);
     } else {
-      // Start timer
-      onUpdateTask(task.id, {
-        isTimerRunning: true,
-        timerStartedAt: new Date().toISOString(),
-        status: 'in-progress' as TaskStatus,
-      });
+      onStartTimer(task._id);
     }
   };
 
   const handleStatusChange = (newStatus: TaskStatus) => {
-    onUpdateTask(task.id, {
+    onUpdateTask(task._id, {
       status: newStatus,
       isTimerRunning: newStatus === 'completed' ? false : task.isTimerRunning,
       updatedAt: new Date().toISOString(),
     });
   };
 
-  const assignedUser = users.find(u => u.id === task.assignee);
+  const handleDeleteTask = () => {
+    if (onDeleteTask) {
+      onDeleteTask(task._id);
+      toast({
+        title: "Task Deleted",
+        description: "Task has been successfully deleted",
+      });
+    }
+  };
+
+  const assignedUser = (() => {
+    // If task.assignee is already a populated user object, use it directly
+    if (task.assignee && typeof task.assignee === 'object') {
+      return task.assignee;
+    }
+    
+    // If task.assignee is a string (user ID), find the user in the users array
+    if (typeof task.assignee === 'string') {
+      return users.find(u => {
+        const userId = u._id || u.id;
+        return userId === task.assignee;
+      });
+    }
+    
+    return null;
+  })();
   const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'completed';
 
   return (
@@ -105,9 +127,9 @@ export const TaskCard = ({ task, onUpdateTask, showAssignee = false }: TaskCardP
     )}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
-          <div className="space-y-2 flex-1">
+          <div className="flex-1 space-y-2">
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-sm leading-tight">{task.title}</h3>
+              <h3 className="text-sm font-semibold leading-tight">{task.title}</h3>
               {isOverdue && (
                 <AlertCircle className="w-4 h-4 text-destructive" />
               )}
@@ -117,14 +139,54 @@ export const TaskCard = ({ task, onUpdateTask, showAssignee = false }: TaskCardP
             </p>
           </div>
           
-          <div className="flex items-center gap-1 ml-2">
-            <span className="text-xs">{priorityConfig[task.priority].icon}</span>
-            <Badge 
-              variant="secondary" 
-              className={cn("text-xs", priorityConfig[task.priority].color)}
-            >
-              {task.priority}
-            </Badge>
+          <div className="flex items-center gap-2 ml-2">
+            <div className="flex items-center gap-1">
+              <Badge 
+                variant="secondary" 
+                className={cn("text-xs", priorityConfig[task.priority].color)}
+              >
+                {task.priority}
+              </Badge>
+            </div>
+            
+            <div className="flex items-center gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowEditModal(true)}
+                className="w-8 h-8 p-0"
+              >
+                <Edit className="w-3 h-3" />
+              </Button>
+              
+              {onDeleteTask && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="w-8 h-8 p-0 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Task</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete "{task.title}"? This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDeleteTask} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -143,7 +205,7 @@ export const TaskCard = ({ task, onUpdateTask, showAssignee = false }: TaskCardP
 
         {showAssignee && assignedUser && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <User className="w-3 h-3" />
+            <UserIcon className="w-3 h-3" />
             <span>{assignedUser.name}</span>
             <span>•</span>
             <span>{assignedUser.department}</span>
@@ -192,12 +254,12 @@ export const TaskCard = ({ task, onUpdateTask, showAssignee = false }: TaskCardP
               <DialogHeader>
                 <DialogTitle>{task.title} - Comments & Remarks</DialogTitle>
               </DialogHeader>
-              <TaskComments task={task} onUpdateTask={onUpdateTask} />
+              <TaskComments task={task} users={users || []} onUpdateTask={onUpdateTask} />
             </DialogContent>
           </Dialog>
         </div>
 
-        <div className="flex gap-1 flex-wrap">
+        <div className="flex flex-wrap gap-1">
           {(['todo', 'in-progress', 'completed'] as TaskStatus[]).map((status) => (
             <Button
               key={status}
@@ -221,6 +283,14 @@ export const TaskCard = ({ task, onUpdateTask, showAssignee = false }: TaskCardP
           </div>
         )}
       </CardContent>
+      
+      <EditTaskModal
+        task={task}
+        users={users || []}
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        onUpdateTask={onUpdateTask}
+      />
     </Card>
   );
 };

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { AuthState, User } from '@/types/auth';
 import { clearAuthToken } from '@/utils/BasicApi';
 
@@ -27,11 +27,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: false,
   });
 
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      setAuthState({
+        user: JSON.parse(storedUser),
+        isAuthenticated: true,
+      });
+    }
+  }, []);
+
   const login = (user: User) => {
     setAuthState({
       user,
       isAuthenticated: true,
     });
+    localStorage.setItem('user', JSON.stringify(user));
   };
 
   const logout = () => {
@@ -39,6 +50,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       user: null,
       isAuthenticated: false,
     });
+    localStorage.removeItem('user');
     clearAuthToken();
   };
 

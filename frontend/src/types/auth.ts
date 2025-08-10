@@ -1,7 +1,8 @@
 export type UserRole = 'admin' | 'team-member';
 
 export interface User {
-  id: string;
+  id?: string;  // For static data compatibility
+  _id?: string; // For backend API response
   name: string;
   email: string;
   role: UserRole;

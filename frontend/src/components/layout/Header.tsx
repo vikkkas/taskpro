@@ -13,18 +13,19 @@ export const Header = () => {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
-      <div className="container flex h-16 items-center justify-between">
+      <div className="container flex items-center justify-between h-16">
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-              <BarChart3 className="w-4 h-4 text-primary-foreground" />
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-primary">
+              {/* <BarChart3 className="w-4 h-4 text-primary-foreground" /> */}
+              <img className='rounded-xl' src="../../../public/favicon.ico" alt="" />
             </div>
-            <h1 className="text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              TaskFlow Pro
+            <h1 className="text-xl font-bold text-transparent bg-gradient-primary bg-clip-text">
+              TaskFlow
             </h1>
           </div>
           
-          <div className="hidden md:flex items-center space-x-1 text-sm text-muted-foreground">
+          <div className="items-center hidden space-x-1 text-sm md:flex text-muted-foreground">
             <Users className="w-4 h-4" />
             <span>{user.department}</span>
           </div>
@@ -33,13 +34,13 @@ export const Header = () => {
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
             <Avatar className="w-8 h-8">
-              <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+              <AvatarFallback className="text-sm bg-primary text-primary-foreground">
                 {user.name.split(' ').map(n => n[0]).join('')}
               </AvatarFallback>
             </Avatar>
             <div className="hidden md:block">
               <p className="text-sm font-medium">{user.name}</p>
-              <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
+              <p className="text-xs capitalize text-muted-foreground">{user.role}</p>
             </div>
           </div>
 
@@ -50,7 +51,7 @@ export const Header = () => {
             className="text-muted-foreground hover:text-foreground"
           >
             <Settings className="w-4 h-4" />
-            <span className="hidden md:inline ml-2">Settings</span>
+            <span className="hidden ml-2 md:inline">Settings</span>
           </Button>
 
           <Button 
@@ -60,7 +61,7 @@ export const Header = () => {
             className="text-muted-foreground hover:text-foreground"
           >
             <LogOut className="w-4 h-4" />
-            <span className="hidden md:inline ml-2">Logout</span>
+            <span className="hidden ml-2 md:inline">Logout</span>
           </Button>
         </div>
       </div>

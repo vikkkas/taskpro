@@ -5,9 +5,12 @@ const {
   loginUser,
   getUserProfile,
   updateUserProfile,
-  getAllUsers
+  changePassword,
+  getAllUsers,
+  deleteUser
 } = require('../controllers/authController');
 const authMiddleware = require('../middleware/authMiddleware');
+const { adminOnly } = require('../middleware/roleMiddleware');
 
 const router = express.Router();
 
@@ -71,11 +74,29 @@ const updateProfileValidation = [
     .withMessage('Avatar must be a valid URL')
 ];
 
+const changePasswordValidation = [
+  body('currentPassword')
+    .notEmpty()
+    .withMessage('Current password is required'),
+  body('newPassword')
+    .isLength({ min: 6 })
+    .withMessage('New password must be at least 6 characters long'),
+  body('confirmPassword')
+    .custom((value, { req }) => {
+      if (value !== req.body.newPassword) {
+        throw new Error('Password confirmation does not match new password');
+      }
+      return true;
+    })
+];
+
 // Routes
-router.post('/register', registerValidation, registerUser);
+router.post('/register', authMiddleware, adminOnly, registerValidation, registerUser);
 router.post('/login', loginValidation, loginUser);
 router.get('/profile', authMiddleware, getUserProfile);
 router.put('/profile', authMiddleware, updateProfileValidation, updateUserProfile);
+router.put('/change-password', authMiddleware, changePasswordValidation, changePassword);
 router.get('/users', authMiddleware, getAllUsers);
+router.delete('/users/:id', authMiddleware, adminOnly, deleteUser);
 
 module.exports = router;

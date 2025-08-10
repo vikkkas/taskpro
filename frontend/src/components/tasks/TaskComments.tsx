@@ -5,27 +5,30 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Task, TaskComment } from '@/types/task';
+import { User } from '@/types/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { users } from '@/data/staticData';
 import { MessageSquare, Send, Crown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { postAPI } from '@/utils/BasicApi';
+import { COMMENTS } from '@/utils/apiURL';
 
 interface TaskCommentsProps {
   task: Task;
+  users: User[];
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void;
 }
 
-export const TaskComments = ({ task, onUpdateTask }: TaskCommentsProps) => {
+export const TaskComments = ({ task, users, onUpdateTask }: TaskCommentsProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [newComment, setNewComment] = useState('');
   const [isAdminRemark, setIsAdminRemark] = useState(false);
 
-  const handleAddComment = () => {
+  const handleAddComment = async() => {
     if (!newComment.trim() || !user) return;
 
     const comment: TaskComment = {
-      id: Date.now().toString(),
+      _id: Date.now().toString(),
       content: newComment.trim(),
       authorId: user.id,
       authorName: user.name,
@@ -33,7 +36,19 @@ export const TaskComments = ({ task, onUpdateTask }: TaskCommentsProps) => {
       isAdminRemark: user.role === 'admin' && isAdminRemark
     };
 
-    onUpdateTask(task.id, {
+    try {
+      const respone = await postAPI(COMMENTS.CREATE(task._id), comment);
+      console.log(respone);
+    }
+    catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add comment. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
+    onUpdateTask(task._id, {
       comments: [...task.comments, comment]
     });
 
@@ -92,7 +107,7 @@ export const TaskComments = ({ task, onUpdateTask }: TaskCommentsProps) => {
                   onChange={(e) => setIsAdminRemark(e.target.checked)}
                   className="w-4 h-4"
                 />
-                <label htmlFor="adminRemark" className="text-sm flex items-center gap-1">
+                <label htmlFor="adminRemark" className="flex items-center gap-1 text-sm">
                   <Crown className="w-4 h-4 text-warning" />
                   Mark as Admin Remark
                 </label>
@@ -113,19 +128,19 @@ export const TaskComments = ({ task, onUpdateTask }: TaskCommentsProps) => {
 
         {/* Comments List */}
         {sortedComments.length === 0 ? (
-          <div className="text-center py-6 text-muted-foreground">
+          <div className="py-6 text-center text-muted-foreground">
             <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No comments yet</p>
-            <p className="text-xs mt-1">Be the first to add a comment</p>
+            <p className="mt-1 text-xs">Be the first to add a comment</p>
           </div>
         ) : (
-          <div className="space-y-3 max-h-64 overflow-y-auto">
+          <div className="space-y-3 overflow-y-auto max-h-64">
             {sortedComments.map((comment) => {
               const author = users.find(u => u.id === comment.authorId);
               
               return (
                 <div
-                  key={comment.id}
+                  key={comment._id}
                   className={`border rounded-lg p-3 ${
                     comment.isAdminRemark 
                       ? 'border-warning bg-warning/5' 
@@ -136,13 +151,15 @@ export const TaskComments = ({ task, onUpdateTask }: TaskCommentsProps) => {
                     <Avatar className="w-8 h-8">
                       <AvatarImage src={author?.avatar} />
                       <AvatarFallback>
-                        {comment.authorName.charAt(0).toUpperCase()}
+                        {(author?.name || comment.authorName).charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     
                     <div className="flex-1 space-y-2">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{comment.authorName}</span>
+                        <span className="text-sm font-medium">
+                          {author?.name || comment.authorName}
+                        </span>
                         {comment.isAdminRemark && (
                           <Badge variant="outline" className="text-xs border-warning text-warning">
                             <Crown className="w-3 h-3 mr-1" />

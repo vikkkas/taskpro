@@ -8,6 +8,7 @@ import { CheckCircle, Clock, Play } from 'lucide-react';
 interface KanbanBoardProps {
   tasks: Task[];
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void;
+  onDeleteTask?: (taskId: string) => void;
   selectedUserId?: string;
 }
 
@@ -29,7 +30,7 @@ const statusConfig = {
   },
 };
 
-export const KanbanBoard = ({ tasks, onUpdateTask, selectedUserId }: KanbanBoardProps) => {
+export const KanbanBoard = ({ tasks, onUpdateTask, onDeleteTask, selectedUserId }: KanbanBoardProps) => {
   const tasksByStatus = useMemo(() => {
     const grouped = {
       todo: [] as Task[],
@@ -76,6 +77,7 @@ export const KanbanBoard = ({ tasks, onUpdateTask, selectedUserId }: KanbanBoard
                     key={task.id}
                     task={task}
                     onUpdateTask={onUpdateTask}
+                    onDeleteTask={onDeleteTask}
                     showAssignee={true}
                   />
                 ))

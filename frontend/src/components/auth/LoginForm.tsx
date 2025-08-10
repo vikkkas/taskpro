@@ -3,13 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Card,
   CardContent,
   CardDescription,
@@ -17,12 +10,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { users } from "@/data/staticData";
+// import { users } from "@/data/staticData";
 import { UserRole } from "@/types/auth";
 import { useToast } from "@/hooks/use-toast";
 import { postAPI, setAuthToken } from "@/utils/BasicApi";
 import { AUTH } from "@/utils/apiURL";
-import { set } from "date-fns";
 
 export const LoginForm = () => {
   const [email, setEmail] = useState("");
@@ -56,24 +48,24 @@ export const LoginForm = () => {
     }
   };
 
-  const handleDemoLogin = (role: UserRole) => {
-    const demoUser = users.find((u) => u.role === role) || users[0];
-    login(demoUser);
-    toast({
-      title: "Demo Login",
-      description: `Logged in as ${demoUser.name} (${role})`,
-    });
-  };
+  // const handleDemoLogin = (role: UserRole) => {
+  //   const demoUser = users.find((u) => u.role === role) || users[0];
+  //   login(demoUser);
+  //   toast({
+  //     title: "Demo Login",
+  //     description: `Logged in as ${demoUser.name} (${role})`,
+  //   });
+  // };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-subtle p-4">
+    <div className="flex items-center justify-center min-h-screen p-4 bg-gradient-subtle">
       <Card className="w-full max-w-md shadow-elegant">
-        <CardHeader className="text-center space-y-2">
-          <CardTitle className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-            TaskFlow Pro
+        <CardHeader className="space-y-2 text-center">
+          <CardTitle className="text-2xl font-bold text-transparent bg-gradient-primary bg-clip-text">
+            TaskFlow
           </CardTitle>
           <CardDescription>
-            Digital Media Task Management System
+            Diviner Media
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -89,16 +81,18 @@ export const LoginForm = () => {
                 required
               />
             </div>
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
             <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            {/* <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
               <Select
                 value={selectedRole}
@@ -112,23 +106,23 @@ export const LoginForm = () => {
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </div> */}
 
             <Button
               type="submit"
-              className="w-full bg-gradient-primary hover:shadow-glow transition-all duration-300"
+              className="w-full transition-all duration-300 bg-gradient-primary hover:shadow-glow"
               disabled={Loading}
             >
               {Loading ? "Logging in..." : "Login"}
             </Button>
           </form>
 
-          <div className="relative">
+          {/* <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">
+              <span className="px-2 bg-card text-muted-foreground">
                 Or try demo
               </span>
             </div>
@@ -149,7 +143,7 @@ export const LoginForm = () => {
             >
               Demo Team
             </Button>
-          </div>
+          </div> */}
         </CardContent>
       </Card>
     </div>

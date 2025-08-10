@@ -1,23 +1,46 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Task, WorkSession } from '@/types/task';
-import { users } from '@/data/staticData';
+import { User } from '@/types/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { Clock, Calendar, User, Timer, ChevronDown, Play } from 'lucide-react';
+import { Clock, Calendar, User as UserIcon, Timer, ChevronDown, Play, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { SessionDetailsModal } from './SessionDetailsModal';
+import { TaskSessionsModal } from './TaskSessionsModal';
 
 interface SessionsListProps {
   tasks: Task[];
+  users: User[];
   selectedUserId?: string;
   onUserFilterChange?: (userId: string) => void;
 }
 
-export const SessionsList = ({ tasks, selectedUserId, onUserFilterChange }: SessionsListProps) => {
+export const SessionsList = ({ tasks, users, selectedUserId, onUserFilterChange }: SessionsListProps) => {
   const { user } = useAuth();
+  const [selectedSession, setSelectedSession] = useState<WorkSession | null>(null);
+  const [selectedTaskForSession, setSelectedTaskForSession] = useState<Task | null>(null);
+  const [selectedTaskForList, setSelectedTaskForList] = useState<Task | null>(null);
+
+  const handleSessionClick = (session: WorkSession, task: Task) => {
+    setSelectedSession(session);
+    setSelectedTaskForSession(task);
+    setSelectedTaskForList(null); // Close the other modal if open
+  };
+
+  const handleTaskClick = (task: Task) => {
+    setSelectedTaskForList(task);
+    setSelectedSession(null); // Close the other modal if open
+  };
+
+  const closeModal = () => {
+    setSelectedSession(null);
+    setSelectedTaskForSession(null);
+    setSelectedTaskForList(null);
+  };
   
   // Filter tasks based on user selection and role
   const filteredTasks = useMemo(() => {
@@ -25,12 +48,24 @@ export const SessionsList = ({ tasks, selectedUserId, onUserFilterChange }: Sess
     
     // Filter by selected user for admin
     if (user?.role === 'admin' && selectedUserId && selectedUserId !== 'all') {
-      taskList = taskList.filter(task => task.assignee === selectedUserId);
+      taskList = taskList.filter(task => {
+        if (typeof task.assignee === 'string') {
+          return task.assignee === selectedUserId;
+        } else {
+          return task.assignee?._id === selectedUserId || task.assignee?.id === selectedUserId;
+        }
+      });
     }
     
     // For team members, only show their own tasks
     if (user?.role === 'team-member') {
-      taskList = taskList.filter(task => task.assignee === user.id);
+      taskList = taskList.filter(task => {
+        if (typeof task.assignee === 'string') {
+          return task.assignee === user.id;
+        } else {
+          return task.assignee?._id === user.id || task.assignee?.id === user.id;
+        }
+      });
     }
     
     // Only show tasks that have work sessions
@@ -65,8 +100,16 @@ export const SessionsList = ({ tasks, selectedUserId, onUserFilterChange }: Sess
 
   const activeUsers = useMemo(() => {
     if (user?.role !== 'admin') return [];
-    return users.filter(u => tasks.some(task => task.assignee === u.id && task.workSessions.length > 0));
-  }, [user?.role, tasks]);
+    return users.filter(u => tasks.some(task => {
+      let assigneeId = '';
+      if (typeof task.assignee === 'string') {
+        assigneeId = task.assignee;
+      } else {
+        assigneeId = task.assignee?._id || task.assignee?.id || '';
+      }
+      return assigneeId === u.id && task.workSessions.length > 0;
+    }));
+  }, [user?.role, tasks, users]);
 
   return (
     <Card>
@@ -74,26 +117,57 @@ export const SessionsList = ({ tasks, selectedUserId, onUserFilterChange }: Sess
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Timer className="w-5 h-5" />
-            Work Sessions (Task-wise)
+            Work Sessions
             <Badge variant="secondary" className="text-xs">
               {filteredTasks.length} tasks
             </Badge>
           </CardTitle>
           
           {user?.role === 'admin' && onUserFilterChange && (
-            <Select value={selectedUserId || 'all'} onValueChange={onUserFilterChange}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filter by user" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Team Members</SelectItem>
-                {activeUsers.map(u => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u.name} ({u.department})
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-muted-foreground" />
+              <Select value={selectedUserId || 'all'} onValueChange={onUserFilterChange}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Filter by user" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-center w-6 h-6 text-xs font-medium text-white rounded-full bg-gradient-to-r from-blue-500 to-purple-500">
+                        All
+                      </div>
+                      <span>All Team Members</span>
+                      <Badge variant="outline" className="ml-auto text-xs">
+                        {activeUsers.length}
+                      </Badge>
+                    </div>
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  {activeUsers.length === 0 ? (
+                    <div className="px-2 py-1 text-sm text-muted-foreground">
+                      No users with sessions found
+                    </div>
+                  ) : (
+                    activeUsers.map(u => (
+                      <SelectItem key={u.id} value={u.id}>
+                        <div className="flex items-center gap-2">
+                          <img
+                            src={u.avatar}
+                            alt={u.name}
+                            className="w-6 h-6 rounded-full"
+                          />
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">{u.name}</span>
+                            {u.department && (
+                              <span className="text-xs text-muted-foreground">{u.department}</span>
+                            )}
+                          </div>
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
           )}
         </div>
         
@@ -109,7 +183,7 @@ export const SessionsList = ({ tasks, selectedUserId, onUserFilterChange }: Sess
             </div>
             {user?.role === 'admin' && selectedUserId && selectedUserId !== 'all' && (
               <div className="flex items-center gap-1">
-                <User className="w-4 h-4" />
+                <UserIcon className="w-4 h-4" />
                 <span>{users.find(u => u.id === selectedUserId)?.name}</span>
               </div>
             )}
@@ -119,96 +193,74 @@ export const SessionsList = ({ tasks, selectedUserId, onUserFilterChange }: Sess
       
       <CardContent>
         {filteredTasks.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
+          <div className="py-8 text-center text-muted-foreground">
             <Timer className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No work sessions recorded yet</p>
-            <p className="text-xs mt-1">Start working on tasks to see sessions here</p>
+            <p className="mt-1 text-xs">Start working on tasks to see sessions here</p>
           </div>
         ) : (
-          <div className="space-y-4 max-h-96 overflow-y-auto">
+          <div className="space-y-4 overflow-y-auto max-h-96">
             {filteredTasks.map((task) => {
-              const assignedUser = users.find(u => u.id === task.assignee);
+              // Handle both string and object assignee types
+              let assignedUser = null;
+              if (typeof task.assignee === 'string') {
+                assignedUser = users.find(u => u.id === task.assignee);
+              } else if (task.assignee && typeof task.assignee === 'object') {
+                const assigneeObj = task.assignee as any;
+                assignedUser = users.find(u => u.id === (assigneeObj._id || assigneeObj.id));
+              }
+              
               const taskTotalTime = task.workSessions.reduce((sum, session) => sum + session.duration, 0);
               
               return (
-                <Collapsible key={task.id}>
-                  <CollapsibleTrigger asChild>
-                    <div className="border rounded-lg p-4 hover:bg-muted/50 transition-colors cursor-pointer">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-medium text-sm">{task.title}</h4>
-                            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                          </div>
-                          {user?.role === 'admin' && assignedUser && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <User className="w-3 h-3" />
-                              <span>{assignedUser.name}</span>
-                              <span>•</span>
-                              <span>{assignedUser.department}</span>
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs">
-                            {task.workSessions.length} session{task.workSessions.length !== 1 ? 's' : ''}
-                          </Badge>
-                          <Badge variant="secondary" className="text-xs">
-                            {formatTime(taskTotalTime)}
-                          </Badge>
-                        </div>
+                <div key={task._id} className="p-4 transition-colors border rounded-lg hover:bg-muted/50">
+                  <div 
+                    className="flex items-center justify-between cursor-pointer"
+                    onClick={() => handleTaskClick(task)}
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-medium">{task.title}</h4>
                       </div>
+                      {user?.role === 'admin' && assignedUser && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <UserIcon className="w-3 h-3" />
+                          <span>{assignedUser.name}</span>
+                          <span>•</span>
+                          <span>{assignedUser.department}</span>
+                        </div>
+                      )}
                     </div>
-                  </CollapsibleTrigger>
-                  
-                  <CollapsibleContent>
-                    <div className="mt-2 ml-4 space-y-2">
-                      {task.workSessions
-                        .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
-                        .map((session) => {
-                          const startDateTime = formatDateTime(session.startTime);
-                          const endDateTime = session.endTime ? formatDateTime(session.endTime) : null;
-                          
-                          return (
-                            <div
-                              key={session.id}
-                              className="border rounded-md p-3 bg-muted/30 space-y-2"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1">
-                                  <Play className="w-3 h-3 text-muted-foreground" />
-                                  <span className="text-xs font-medium">Session {session.id.split('-').pop()}</span>
-                                </div>
-                                <Badge variant="outline" className="text-xs">
-                                  {formatTime(session.duration)}
-                                </Badge>
-                              </div>
-                              
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground">
-                                <div className="flex items-center gap-1">
-                                  <Calendar className="w-3 h-3" />
-                                  <span>Started: {startDateTime.date} at {startDateTime.time}</span>
-                                </div>
-                                
-                                {endDateTime && (
-                                  <div className="flex items-center gap-1">
-                                    <Clock className="w-3 h-3" />
-                                    <span>Ended: {endDateTime.date} at {endDateTime.time}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
+                    
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {task.workSessions.length} session{task.workSessions.length !== 1 ? 's' : ''}
+                      </Badge>
+                      <Badge variant="secondary" className="text-xs">
+                        {formatTime(taskTotalTime)}
+                      </Badge>
                     </div>
-                  </CollapsibleContent>
-                </Collapsible>
+                  </div>
+                </div>
               );
             })}
           </div>
         )}
       </CardContent>
+      <SessionDetailsModal
+        isOpen={!!selectedSession}
+        onClose={closeModal}
+        session={selectedSession}
+        task={selectedTaskForSession}
+        users={users}
+      />
+      <TaskSessionsModal
+        isOpen={!!selectedTaskForList}
+        onClose={closeModal}
+        task={selectedTaskForList}
+        users={users}
+        onSessionClick={handleSessionClick}
+      />
     </Card>
   );
 };

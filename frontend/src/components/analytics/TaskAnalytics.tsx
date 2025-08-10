@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Task } from '@/types/task';
-import { users } from '@/data/staticData';
+import { User } from '@/types/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   BarChart, 
@@ -27,18 +27,20 @@ import {
   Calendar,
   BarChart3,
   PieChart as PieChartIcon,
-  Activity
+  Activity,
+  Users
 } from 'lucide-react';
 
 interface TaskAnalyticsProps {
   tasks: Task[];
+  users: User[];
   selectedUserId?: string;
   onUserFilterChange?: (userId: string) => void;
 }
 
 type TimePeriod = 'weekly' | 'monthly' | 'yearly';
 
-export const TaskAnalytics = ({ tasks, selectedUserId, onUserFilterChange }: TaskAnalyticsProps) => {
+export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange }: TaskAnalyticsProps) => {
   const { user } = useAuth();
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('weekly');
 
@@ -47,7 +49,14 @@ export const TaskAnalytics = ({ tasks, selectedUserId, onUserFilterChange }: Tas
     let taskList = tasks;
     
     if (user?.role === 'admin' && selectedUserId && selectedUserId !== 'all') {
-      taskList = taskList.filter(task => task.assignee === selectedUserId);
+      // Handle both string and object assignee types
+      taskList = taskList.filter(task => {
+        if (typeof task.assignee === 'string') {
+          return task.assignee === selectedUserId;
+        } else {
+          return task.assignee?._id === selectedUserId || task.assignee?.id === selectedUserId;
+        }
+      });
     }
     
     if (user?.role === 'team-member') {
@@ -204,8 +213,14 @@ export const TaskAnalytics = ({ tasks, selectedUserId, onUserFilterChange }: Tas
 
   const activeUsers = useMemo(() => {
     if (user?.role !== 'admin') return [];
-    return users.filter(u => tasks.some(task => task.assignee === u.id));
-  }, [user?.role, tasks]);
+    return users.filter(u => tasks.some(task => {
+      if (typeof task.assignee === 'string') {
+        return task.assignee === u.id;
+      } else {
+        return task.assignee?._id === u.id || task.assignee?.id === u.id;
+      }
+    }));
+  }, [user?.role, tasks, users]);
 
   return (
     <div className="space-y-6">
@@ -220,19 +235,50 @@ export const TaskAnalytics = ({ tasks, selectedUserId, onUserFilterChange }: Tas
         
         <div className="flex gap-2">
           {user?.role === 'admin' && onUserFilterChange && (
-            <Select value={selectedUserId || 'all'} onValueChange={onUserFilterChange}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Team Member" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Members</SelectItem>
-                {activeUsers.map(u => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u.name}
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-muted-foreground" />
+              <Select value={selectedUserId || 'all'} onValueChange={onUserFilterChange}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Select Team Member" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-medium">
+                        All
+                      </div>
+                      <span>All Members</span>
+                      <Badge variant="outline" className="ml-auto text-xs">
+                        {activeUsers.length}
+                      </Badge>
+                    </div>
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  {activeUsers.length === 0 ? (
+                    <div className="px-2 py-1 text-sm text-muted-foreground">
+                      No active members found
+                    </div>
+                  ) : (
+                    activeUsers.map(u => (
+                      <SelectItem key={u.id} value={u.id}>
+                        <div className="flex items-center gap-2">
+                          <img
+                            src={u.avatar}
+                            alt={u.name}
+                            className="w-6 h-6 rounded-full"
+                          />
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">{u.name}</span>
+                            {u.department && (
+                              <span className="text-xs text-muted-foreground">{u.department}</span>
+                            )}
+                          </div>
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
           )}
           
           <Select value={timePeriod} onValueChange={(value: TimePeriod) => setTimePeriod(value)}>
@@ -247,6 +293,61 @@ export const TaskAnalytics = ({ tasks, selectedUserId, onUserFilterChange }: Tas
           </Select>
         </div>
       </div>
+
+      {/* Member-specific summary for admin when a specific user is selected */}
+      {user?.role === 'admin' && selectedUserId && selectedUserId !== 'all' && (
+        <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4 mb-4">
+              {(() => {
+                const selectedUser = activeUsers.find(u => u.id === selectedUserId);
+                if (!selectedUser) return null;
+                return (
+                  <>
+                    <img
+                      src={selectedUser.avatar}
+                      alt={selectedUser.name}
+                      className="w-12 h-12 rounded-full"
+                    />
+                    <div>
+                      <h3 className="text-lg font-semibold">{selectedUser.name}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedUser.department} • {selectedUser.role}
+                      </p>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{filteredTasks.length}</div>
+                <div className="text-sm text-muted-foreground">Total Tasks</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  {filteredTasks.filter(t => t.status === 'completed').length}
+                </div>
+                <div className="text-sm text-muted-foreground">Completed</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">
+                  {filteredTasks.filter(t => t.status === 'in-progress').length}
+                </div>
+                <div className="text-sm text-muted-foreground">In Progress</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">
+                  {Math.round(filteredTasks.reduce((total, task) => 
+                    total + task.workSessions.reduce((sum, session) => sum + session.duration, 0), 0
+                  ) / 60 * 10) / 10}h
+                </div>
+                <div className="text-sm text-muted-foreground">Time Spent</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Overview Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

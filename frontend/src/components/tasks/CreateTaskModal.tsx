@@ -6,14 +6,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TaskPriority } from '@/types/task';
+import { User } from '@/types/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { users } from '@/data/staticData';
 import { Plus, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface CreateTaskModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  users: User[];
   onCreateTask: (task: {
     title: string;
     description: string;
@@ -24,7 +25,7 @@ interface CreateTaskModalProps {
   }) => void;
 }
 
-export const CreateTaskModal = ({ open, onOpenChange, onCreateTask }: CreateTaskModalProps) => {
+export const CreateTaskModal = ({ open, onOpenChange, users, onCreateTask }: CreateTaskModalProps) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
@@ -34,6 +35,14 @@ export const CreateTaskModal = ({ open, onOpenChange, onCreateTask }: CreateTask
   const [tags, setTags] = useState<string[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
+
+  // Helper function to get user ID (handles both _id and id)
+  const getUserId = (user: User): string => user._id || user.id || '';
+  const getUserName = (userId: string): string => {
+    if (!users || users.length === 0) return 'Unknown User';
+    const foundUser = users.find(u => getUserId(u) === userId);
+    return foundUser?.name || 'Unknown User';
+  };
 
   const handleAddTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {
@@ -65,7 +74,7 @@ export const CreateTaskModal = ({ open, onOpenChange, onCreateTask }: CreateTask
       return;
     }
 
-    const taskAssignee = user?.role === 'admin' && assignee ? assignee : user!.id;
+    const taskAssignee = user?.role === 'admin' && assignee ? assignee : getUserId(user!);
 
     onCreateTask({
       title: title.trim(),
@@ -149,11 +158,25 @@ export const CreateTaskModal = ({ open, onOpenChange, onCreateTask }: CreateTask
                     <SelectValue placeholder="Select team member" />
                   </SelectTrigger>
                   <SelectContent>
-                    {users.map((member) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.name} - {member.department}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="">Unassigned</SelectItem>
+                    {users.map((member) => {
+                      const userId = getUserId(member);
+                      return (
+                        <SelectItem key={userId} value={userId}>
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={member.avatar}
+                              alt={member.name}
+                              className="w-5 h-5 rounded-full"
+                            />
+                            <span>{member.name}</span>
+                            {member.department && (
+                              <span className="text-muted-foreground">({member.department})</span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
@@ -189,7 +212,7 @@ export const CreateTaskModal = ({ open, onOpenChange, onCreateTask }: CreateTask
                 {tags.map((tag) => (
                   <div
                     key={tag}
-                    className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded-md text-sm"
+                    className="flex items-center gap-1 px-2 py-1 text-sm rounded-md bg-primary/10 text-primary"
                   >
                     #{tag}
                     <button
@@ -208,7 +231,7 @@ export const CreateTaskModal = ({ open, onOpenChange, onCreateTask }: CreateTask
           <div className="flex gap-2 pt-4">
             <Button 
               type="submit" 
-              className="bg-gradient-primary hover:shadow-glow transition-all duration-300"
+              className="transition-all duration-300 bg-gradient-primary hover:shadow-glow"
             >
               Create Task
             </Button>
