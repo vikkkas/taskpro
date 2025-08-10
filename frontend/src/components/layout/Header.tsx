@@ -18,7 +18,7 @@ export const Header = () => {
           <div className="flex items-center space-x-2">
             <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-primary">
               {/* <BarChart3 className="w-4 h-4 text-primary-foreground" /> */}
-              <img className='rounded-xl' src="../../../public/favicon.ico" alt="" />
+              <img className='rounded-xl' src="../../../public/dm.jpeg" alt="" />
             </div>
             <h1 className="text-xl font-bold text-transparent bg-gradient-primary bg-clip-text">
               TaskFlow
