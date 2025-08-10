@@ -194,12 +194,9 @@ export const UserManagement = ({ onUsersUpdate }: UserManagementProps) => {
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Design">Design</SelectItem>
-                      <SelectItem value="Video Production">Video Production</SelectItem>
-                      <SelectItem value="Content">Content</SelectItem>
-                      <SelectItem value="Marketing">Marketing</SelectItem>
+                      <SelectItem value="Admin">Admin</SelectItem>
+                      <SelectItem value="Interns">Interns</SelectItem>
                       <SelectItem value="Development">Development</SelectItem>
-                      <SelectItem value="Management">Management</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -233,17 +230,17 @@ export const UserManagement = ({ onUsersUpdate }: UserManagementProps) => {
       
       <CardContent>
         {teamMembers.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
+          <div className="py-8 text-center text-muted-foreground">
             <UserX className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No team members yet</p>
-            <p className="text-xs mt-1">Add your first team member to get started</p>
+            <p className="mt-1 text-xs">Add your first team member to get started</p>
           </div>
         ) : (
-          <div className="space-y-3 max-h-96 overflow-y-auto">
+          <div className="space-y-3 overflow-y-auto max-h-96">
             {teamMembers.map((user) => (
               <div
                 key={user.id}
-                className="border rounded-lg p-4 flex items-center justify-between hover:bg-muted/50 transition-colors"
+                className="flex items-center justify-between p-4 transition-colors border rounded-lg hover:bg-muted/50"
               >
                 <div className="flex items-center gap-3">
                   <img
@@ -252,7 +249,7 @@ export const UserManagement = ({ onUsersUpdate }: UserManagementProps) => {
                     className="w-10 h-10 rounded-full"
                   />
                   <div>
-                    <h4 className="font-medium text-sm">{user.name}</h4>
+                    <h4 className="text-sm font-medium">{user.name}</h4>
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <Mail className="w-3 h-3" />
