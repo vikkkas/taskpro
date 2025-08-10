@@ -596,15 +596,7 @@ export const Dashboard = () => {
               ))}
             </div>
           ) : (
-            <>
-              {/* Debug info */}
-              <div className="mb-2 text-xs text-gray-500">
-                Debug: Total tasks: {tasks.length}, User tasks: {userTasks.length}, 
-                Admin filtered: {adminFilteredTasks.length}, 
-                Final filtered: {filteredActiveTasks.length}, 
-                Loading: {loading.toString()}
-              </div>
-              
+            <>              
               {filteredActiveTasks.length === 0 ? (
                 <div className="py-12 text-center">
                   <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-muted">
