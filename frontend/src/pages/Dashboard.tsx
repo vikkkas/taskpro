@@ -410,13 +410,14 @@ export const Dashboard = () => {
               </Button>
             </div>
             
+          {user?.role === 'admin' ? (
             <Button 
               onClick={() => setShowCreateModal(true)}
               className="transition-all duration-300 bg-gradient-primary hover:shadow-glow"
             >
               <Plus className="w-4 h-4 mr-2" />
               Create Task
-            </Button>
+            </Button>) : null}
           </div>
         </div>
 

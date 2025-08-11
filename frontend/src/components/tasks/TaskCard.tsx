@@ -1,16 +1,43 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Task, TaskStatus, TaskPriority } from '@/types/task';
-import { User } from '@/types/auth';
-import { TaskComments } from './TaskComments';
-import { EditTaskModal } from './EditTaskModal';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { useToast } from '@/hooks/use-toast';
-import { Play, Pause, Clock, Calendar, User as UserIcon, AlertCircle, MessageSquare, Edit, Trash2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Task, TaskStatus, TaskPriority } from "@/types/task";
+import { User } from "@/types/auth";
+import { TaskComments } from "./TaskComments";
+import { EditTaskModal } from "./EditTaskModal";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Play,
+  Pause,
+  Clock,
+  Calendar,
+  User as UserIcon,
+  AlertCircle,
+  MessageSquare,
+  Edit,
+  Trash2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 // import { users as defaultUsers } from '@/data/staticData';
 
 interface TaskCardProps {
@@ -24,18 +51,33 @@ interface TaskCardProps {
 }
 
 const priorityConfig = {
-  low: { color: 'bg-muted text-muted-foreground', icon: '○' },
-  medium: { color: 'bg-warning text-warning-foreground', icon: '◐' },
-  high: { color: 'bg-destructive text-destructive-foreground', icon: '●' },
+  low: { color: "bg-muted text-muted-foreground", icon: "○" },
+  medium: { color: "bg-warning text-warning-foreground", icon: "◐" },
+  high: { color: "bg-destructive text-destructive-foreground", icon: "●" },
 };
 
 const statusConfig = {
-  todo: { color: 'bg-muted text-muted-foreground', label: 'To Do' },
-  'in-progress': { color: 'bg-primary text-primary-foreground', label: 'In Progress' },
-  completed: { color: 'bg-success text-success-foreground', label: 'Completed' },
+  todo: { color: "bg-muted text-muted-foreground", label: "To Do" },
+  "in-progress": {
+    color: "bg-primary text-primary-foreground",
+    label: "In Progress",
+  },
+  completed: {
+    color: "bg-success text-success-foreground",
+    label: "Completed",
+  },
 };
 
-export const TaskCard = ({ task, users , onUpdateTask, onDeleteTask, onStartTimer, onStopTimer, showAssignee = false }: TaskCardProps) => {
+export const TaskCard = ({
+  task,
+  users,
+  onUpdateTask,
+  onDeleteTask,
+  onStartTimer,
+  onStopTimer,
+  showAssignee = false,
+}: TaskCardProps) => {
+  const { user } = useAuth();
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [showComments, setShowComments] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -44,27 +86,31 @@ export const TaskCard = ({ task, users , onUpdateTask, onDeleteTask, onStartTime
     const interval = setInterval(() => {
       setCurrentTime(Date.now());
     }, 1000);
-    
+
     return () => clearInterval(interval);
   }, []);
 
   const calculateTimeSpent = () => {
     let totalSeconds = task.timeSpent * 60; // convert minutes to seconds
-    
+
     if (task.isTimerRunning && task.timerStartedAt) {
-      const additionalSeconds = Math.floor((currentTime - new Date(task.timerStartedAt).getTime()) / 1000);
+      const additionalSeconds = Math.floor(
+        (currentTime - new Date(task.timerStartedAt).getTime()) / 1000
+      );
       totalSeconds += additionalSeconds;
     }
-    
+
     return Math.floor(totalSeconds / 60); // return total minutes
   };
 
   const formatTime = (minutes: number) => {
     if (task.isTimerRunning && task.timerStartedAt) {
       let totalSeconds = task.timeSpent * 60;
-      const additionalSeconds = Math.floor((currentTime - new Date(task.timerStartedAt).getTime()) / 1000);
+      const additionalSeconds = Math.floor(
+        (currentTime - new Date(task.timerStartedAt).getTime()) / 1000
+      );
       totalSeconds += additionalSeconds;
-      
+
       const hours = Math.floor(totalSeconds / 3600);
       const mins = Math.floor((totalSeconds % 3600) / 60);
       const secs = totalSeconds % 60;
@@ -87,7 +133,7 @@ export const TaskCard = ({ task, users , onUpdateTask, onDeleteTask, onStartTime
   const handleStatusChange = (newStatus: TaskStatus) => {
     onUpdateTask(task._id, {
       status: newStatus,
-      isTimerRunning: newStatus === 'completed' ? false : task.isTimerRunning,
+      isTimerRunning: newStatus === "completed" ? false : task.isTimerRunning,
       updatedAt: new Date().toISOString(),
     });
   };
@@ -104,32 +150,40 @@ export const TaskCard = ({ task, users , onUpdateTask, onDeleteTask, onStartTime
 
   const assignedUser = (() => {
     // If task.assignee is already a populated user object, use it directly
-    if (task.assignee && typeof task.assignee === 'object') {
+    if (task.assignee && typeof task.assignee === "object") {
       return task.assignee;
     }
-    
+
     // If task.assignee is a string (user ID), find the user in the users array
-    if (typeof task.assignee === 'string') {
-      return users.find(u => {
+    if (typeof task.assignee === "string") {
+      return users.find((u) => {
         const userId = u._id || u.id;
         return userId === task.assignee;
       });
     }
-    
+
     return null;
   })();
-  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'completed';
+  const isOverdue =
+    task.dueDate &&
+    new Date(task.dueDate) < new Date() &&
+    task.status !== "completed";
 
   return (
-    <Card className={cn(
-      "transition-all duration-300 hover:shadow-elegant",
-      task.isTimerRunning && "ring-2 ring-primary shadow-glow animate-pulse-glow"
-    )}>
+    <Card
+      className={cn(
+        "transition-all duration-300 hover:shadow-elegant",
+        task.isTimerRunning &&
+          "ring-2 ring-primary shadow-glow animate-pulse-glow"
+      )}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex-1 space-y-2">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold leading-tight">{task.title}</h3>
+              <h3 className="text-sm font-semibold leading-tight">
+                {task.title}
+              </h3>
               {isOverdue && (
                 <AlertCircle className="w-4 h-4 text-destructive" />
               )}
@@ -138,55 +192,60 @@ export const TaskCard = ({ task, users , onUpdateTask, onDeleteTask, onStartTime
               {task.description}
             </p>
           </div>
-          
+
           <div className="flex items-center gap-2 ml-2">
             <div className="flex items-center gap-1">
-              <Badge 
-                variant="secondary" 
+              <Badge
+                variant="secondary"
                 className={cn("text-xs", priorityConfig[task.priority].color)}
               >
                 {task.priority}
               </Badge>
             </div>
-            
-            <div className="flex items-center gap-1">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowEditModal(true)}
-                className="w-8 h-8 p-0"
-              >
-                <Edit className="w-3 h-3" />
-              </Button>
-              
-              {onDeleteTask && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="w-8 h-8 p-0 text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Task</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Are you sure you want to delete "{task.title}"? This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleDeleteTask} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-            </div>
+            {user?.role === "admin" ? (
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowEditModal(true)}
+                  className="w-8 h-8 p-0"
+                >
+                  <Edit className="w-3 h-3" />
+                </Button>
+
+                {onDeleteTask && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="w-8 h-8 p-0 text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Task</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete "{task.title}"? This
+                          action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleDeleteTask}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
       </CardHeader>
@@ -196,7 +255,7 @@ export const TaskCard = ({ task, users , onUpdateTask, onDeleteTask, onStartTime
           <Badge className={statusConfig[task.status].color}>
             {statusConfig[task.status].label}
           </Badge>
-          
+
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock className="w-3 h-3" />
             <span>{formatTime(calculateTimeSpent())}</span>
@@ -217,7 +276,9 @@ export const TaskCard = ({ task, users , onUpdateTask, onDeleteTask, onStartTime
             <Calendar className="w-3 h-3" />
             <span>Due: {new Date(task.dueDate).toLocaleDateString()}</span>
             {isOverdue && (
-              <Badge variant="destructive" className="text-xs">Overdue</Badge>
+              <Badge variant="destructive" className="text-xs">
+                Overdue
+              </Badge>
             )}
           </div>
         )}
@@ -228,7 +289,7 @@ export const TaskCard = ({ task, users , onUpdateTask, onDeleteTask, onStartTime
             variant={task.isTimerRunning ? "destructive" : "default"}
             onClick={handleTimerToggle}
             className="flex items-center gap-1"
-            disabled={task.status === 'completed'}
+            disabled={task.status === "completed"}
           >
             {task.isTimerRunning ? (
               <>
@@ -245,7 +306,11 @@ export const TaskCard = ({ task, users , onUpdateTask, onDeleteTask, onStartTime
 
           <Dialog open={showComments} onOpenChange={setShowComments}>
             <DialogTrigger asChild>
-              <Button size="sm" variant="outline" className="flex items-center gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex items-center gap-1"
+              >
                 <MessageSquare className="w-3 h-3" />
                 <span className="text-xs">{task.comments?.length || 0}</span>
               </Button>
@@ -254,23 +319,29 @@ export const TaskCard = ({ task, users , onUpdateTask, onDeleteTask, onStartTime
               <DialogHeader>
                 <DialogTitle>{task.title} - Comments & Remarks</DialogTitle>
               </DialogHeader>
-              <TaskComments task={task} users={users || []} onUpdateTask={onUpdateTask} />
+              <TaskComments
+                task={task}
+                users={users || []}
+                onUpdateTask={onUpdateTask}
+              />
             </DialogContent>
           </Dialog>
         </div>
 
         <div className="flex flex-wrap gap-1">
-          {(['todo', 'in-progress', 'completed'] as TaskStatus[]).map((status) => (
-            <Button
-              key={status}
-              size="sm"
-              variant={task.status === status ? "default" : "outline"}
-              onClick={() => handleStatusChange(status)}
-              className="text-xs"
-            >
-              {statusConfig[status].label}
-            </Button>
-          ))}
+          {(["todo", "in-progress", "completed"] as TaskStatus[]).map(
+            (status) => (
+              <Button
+                key={status}
+                size="sm"
+                variant={task.status === status ? "default" : "outline"}
+                onClick={() => handleStatusChange(status)}
+                className="text-xs"
+              >
+                {statusConfig[status].label}
+              </Button>
+            )
+          )}
         </div>
 
         {task.tags.length > 0 && (
@@ -283,7 +354,7 @@ export const TaskCard = ({ task, users , onUpdateTask, onDeleteTask, onStartTime
           </div>
         )}
       </CardContent>
-      
+
       <EditTaskModal
         task={task}
         users={users || []}
