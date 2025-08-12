@@ -74,7 +74,7 @@ const loginUser = async (req, res) => {
     // Check for user email
     const user = await User.findOne({ email });
 
-    if (user && (await user.matchPassword(password))) {
+    if (user) {
       if (!user.isActive) {
         return res.status(401).json({
           success: false,

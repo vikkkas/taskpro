@@ -164,10 +164,17 @@ export const TaskCard = ({
 
     return null;
   })();
-  const isOverdue =
-    task.dueDate &&
-    new Date(task.dueDate) < new Date() &&
-    task.status !== "completed";
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Set to start of day for accurate comparison
+
+  const dueDate = task.dueDate ? new Date(task.dueDate) : null;
+  if (dueDate) {
+    dueDate.setHours(0, 0, 0, 0); // Set to start of day for accurate comparison
+  }
+
+  const isOverdue = dueDate && today > dueDate && task.status !== "completed";
+  const isDueToday = dueDate && today.getTime() === dueDate.getTime() && task.status !== "completed";
 
   return (
     <Card
@@ -184,8 +191,8 @@ export const TaskCard = ({
               <h3 className="text-sm font-semibold leading-tight">
                 {task.title}
               </h3>
-              {isOverdue && (
-                <AlertCircle className="w-4 h-4 text-destructive" />
+              {(isOverdue || isDueToday) && (
+                <AlertCircle className={`w-4 h-4 ${isOverdue ? 'text-destructive' : 'text-warning'}`} />
               )}
             </div>
             <p className="text-xs text-muted-foreground line-clamp-2">
@@ -278,6 +285,11 @@ export const TaskCard = ({
             {isOverdue && (
               <Badge variant="destructive" className="text-xs">
                 Overdue
+              </Badge>
+            )}
+            {isDueToday && (
+              <Badge variant="outline" className="text-xs border-warning text-warning bg-warning/10">
+                Hurry Up!
               </Badge>
             )}
           </div>
