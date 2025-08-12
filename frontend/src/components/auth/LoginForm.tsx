@@ -15,12 +15,14 @@ import { UserRole } from "@/types/auth";
 import { useToast } from "@/hooks/use-toast";
 import { postAPI, setAuthToken } from "@/utils/BasicApi";
 import { AUTH } from "@/utils/apiURL";
+import { Eye, EyeOff } from "lucide-react";
 
 export const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [selectedRole, setSelectedRole] = useState<UserRole>("team-member");
   const [Loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
   const { toast } = useToast();
 
@@ -83,14 +85,33 @@ export const LoginForm = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4 text-gray-500" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-gray-500" />
+                  )}
+                  <span className="sr-only">
+                    {showPassword ? "Hide password" : "Show password"}
+                  </span>
+                </Button>
+              </div>
             </div>
             {/* <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
