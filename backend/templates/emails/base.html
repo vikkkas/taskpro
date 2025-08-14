@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8fafc;
+            color: #334155;
+            line-height: 1.6;
+        }
+        
+        .email-container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 30px;
+            text-align: center;
+            color: white;
+        }
+        
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+        
+        .header-subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 0;
+        }
+        
+        .content {
+            padding: 40px 30px;
+        }
+        
+        .greeting {
+            font-size: 18px;
+            color: #1e293b;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        
+        .message {
+            font-size: 16px;
+            color: #475569;
+            margin-bottom: 30px;
+            line-height: 1.7;
+        }
+        
+        .highlight-box {
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 8px;
+        }
+        
+        .highlight-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 10px;
+        }
+        
+        .highlight-content {
+            color: #475569;
+            font-size: 14px;
+        }
+        
+        .button-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px 30px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: transform 0.2s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .task-details {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .task-details h3 {
+            color: #1e293b;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .task-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .task-meta-item {
+            flex: 1;
+            min-width: 120px;
+        }
+        
+        .task-meta-label {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+        
+        .task-meta-value {
+            font-size: 14px;
+            color: #1e293b;
+            font-weight: 600;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-todo {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+        
+        .status-in-progress {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .status-completed {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        
+        .priority-high {
+            background-color: #fee2e2;
+            color: #dc2626;
+        }
+        
+        .priority-medium {
+            background-color: #fed7aa;
+            color: #ea580c;
+        }
+        
+        .priority-low {
+            background-color: #e0f2fe;
+            color: #0369a1;
+        }
+        
+        .footer {
+            background-color: #f1f5f9;
+            padding: 30px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .footer-links {
+            margin-bottom: 20px;
+        }
+        
+        .footer-link {
+            color: #667eea;
+            text-decoration: none;
+            margin: 0 15px;
+            font-size: 14px;
+        }
+        
+        .footer-text {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 10px;
+        }
+        
+        .social-links {
+            margin-top: 15px;
+        }
+        
+        .social-link {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            background-color: #667eea;
+            color: white;
+            text-align: center;
+            line-height: 32px;
+            border-radius: 50%;
+            text-decoration: none;
+            margin: 0 5px;
+            font-size: 14px;
+        }
+        
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                margin: 10px;
+                border-radius: 8px;
+            }
+            
+            .header,
+            .content,
+            .footer {
+                padding: 20px;
+            }
+            
+            .task-meta {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .task-meta-item {
+                min-width: auto;
+            }
+            
+            .footer-link {
+                display: block;
+                margin: 5px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <div class="logo">TaskFlow</div>
+            <div class="header-subtitle">Project Management Made Simple</div>
+        </div>
+        
+        <div class="content">
+            {{content}}
+        </div>
+        
+        <div class="footer">
+            <div class="footer-links">
+                <a href="{{dashboardUrl}}" class="footer-link">Dashboard</a>
+                <a href="{{supportUrl}}" class="footer-link">Support</a>
+                <a href="{{unsubscribeUrl}}" class="footer-link">Unsubscribe</a>
+            </div>
+            <div class="footer-text">
+                You received this email because you're a member of TaskFlow.
+            </div>
+            <div class="footer-text">
+                &copy; 2025 TaskFlow. All rights reserved.
+            </div>
+            <div class="social-links">
+                <a href="#" class="social-link">📧</a>
+                <a href="#" class="social-link">🐦</a>
+                <a href="#" class="social-link">💼</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Comment on Task - TaskFlow</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8fafc;
+            color: #334155;
+            line-height: 1.6;
+        }
+        
+        .email-container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 30px;
+            text-align: center;
+            color: white;
+        }
+        
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+        
+        .header-subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 0;
+        }
+        
+        .content {
+            padding: 40px 30px;
+        }
+        
+        .comment-icon {
+            text-align: center;
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        
+        .greeting {
+            font-size: 18px;
+            color: #1e293b;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        
+        .message {
+            font-size: 16px;
+            color: #475569;
+            margin-bottom: 30px;
+            line-height: 1.7;
+        }
+        
+        .task-details {
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 8px;
+        }
+        
+        .task-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .task-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .task-meta-item {
+            background: #ffffff;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .task-meta-label {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        
+        .task-meta-value {
+            font-size: 14px;
+            color: #1e293b;
+            font-weight: 500;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-in-progress { background: #dbeafe; color: #1e40af; }
+        .status-completed { background: #d1fae5; color: #065f46; }
+        .status-on-hold { background: #f3e8ff; color: #7c3aed; }
+        
+        .priority-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .priority-low { background: #dcfce7; color: #166534; }
+        .priority-medium { background: #fef3c7; color: #92400e; }
+        .priority-high { background: #fee2e2; color: #dc2626; }
+        .priority-urgent { background: #fecaca; color: #991b1b; }
+        
+        .comment-section {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 24px;
+            margin: 25px 0;
+            position: relative;
+        }
+        
+        .comment-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        .comment-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        .comment-author-info {
+            flex: 1;
+        }
+        
+        .comment-author {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 2px;
+        }
+        
+        .comment-timestamp {
+            font-size: 13px;
+            color: #64748b;
+        }
+        
+        .admin-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .comment-content {
+            font-size: 15px;
+            color: #374151;
+            line-height: 1.7;
+            background: #f8fafc;
+            padding: 16px;
+            border-radius: 8px;
+            border-left: 3px solid #667eea;
+            margin-top: 12px;
+        }
+        
+        .button-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white !important;
+            padding: 14px 30px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: transform 0.2s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            margin: 0 10px;
+        }
+        
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+            color: white !important;
+        }
+        
+        .cta-button.secondary {
+            background: #ffffff;
+            color: #667eea !important;
+            border: 2px solid #667eea;
+            box-shadow: none;
+        }
+        
+        .cta-button.secondary:hover {
+            color: #667eea !important;
+        }
+        
+        .footer {
+            background-color: #f1f5f9;
+            padding: 30px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .footer-links {
+            margin-bottom: 20px;
+        }
+        
+        .footer-link {
+            color: #667eea;
+            text-decoration: none;
+            margin: 0 15px;
+            font-size: 14px;
+        }
+        
+        .footer-text {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 10px;
+        }
+        
+        .social-links {
+            margin-top: 15px;
+        }
+        
+        .social-link {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            background-color: #667eea;
+            color: white;
+            text-align: center;
+            line-height: 32px;
+            border-radius: 50%;
+            text-decoration: none;
+            margin: 0 5px;
+            font-size: 14px;
+        }
+        
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                margin: 10px;
+                border-radius: 8px;
+            }
+            
+            .header,
+            .content,
+            .footer {
+                padding: 20px;
+            }
+            
+            .task-meta {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            
+            .comment-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            
+            .cta-button {
+                display: block;
+                margin: 10px 0;
+            }
+            
+            .footer-link {
+                display: block;
+                margin: 5px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <div class="logo">TaskFlow</div>
+            <div class="header-subtitle">Project Management Made Simple</div>
+        </div>
+        
+        <div class="content">
+            <div class="comment-icon">💬</div>
+            
+            <div class="greeting">
+                Hi {{recipientName}},
+            </div>
+            
+            <div class="message">
+                {{commentAuthor}} has added a new comment to a task that you're {{recipientRole}}.
+            </div>
+            
+            <div class="task-details">
+                <h3>📋 Task Details</h3>
+                
+                <div class="task-title">
+                    {{taskTitle}}
+                </div>
+                
+                <div class="task-meta">
+                    <div class="task-meta-item">
+                        <div class="task-meta-label">Status</div>
+                        <div class="task-meta-value">
+                            <span class="status-badge status-{{taskStatus}}">{{taskStatusDisplay}}</span>
+                        </div>
+                    </div>
+                    <div class="task-meta-item">
+                        <div class="task-meta-label">Priority</div>
+                        <div class="task-meta-value">
+                            <span class="priority-badge priority-{{taskPriority}}">{{taskPriorityDisplay}}</span>
+                        </div>
+                    </div>
+                    <div class="task-meta-item">
+                        <div class="task-meta-label">Due Date</div>
+                        <div class="task-meta-value">{{taskDueDate}}</div>
+                    </div>
+                    <div class="task-meta-item">
+                        <div class="task-meta-label">Assignee</div>
+                        <div class="task-meta-value">{{taskAssignee}}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="comment-section">
+                <div class="comment-header">
+                    <div class="comment-author-info">
+                        <div class="comment-author">
+                            {{commentAuthor}}
+                            {{#if isAdminComment}}
+                            <span class="admin-badge">Admin</span>
+                            {{/if}}
+                        </div>
+                        <div class="comment-timestamp">{{commentTimestamp}}</div>
+                    </div>
+                </div>
+                
+                <div class="comment-content">
+                    {{commentContent}}
+                </div>
+            </div>
+            
+            <div class="button-container">
+                <a href="{{taskUrl}}" class="cta-button">
+                    View Task & Reply
+                </a>
+                <a href="{{dashboardUrl}}" class="cta-button secondary">
+                    Go to Dashboard
+                </a>
+            </div>
+            
+            <div class="message">
+                Stay engaged with your team's discussions and keep projects moving forward. Click above to view the full conversation and respond.
+            </div>
+        </div>
+        
+        <div class="footer">
+            <div class="footer-links">
+                <a href="{{dashboardUrl}}" class="footer-link">Dashboard</a>
+                <a href="{{supportUrl}}" class="footer-link">Support</a>
+                <a href="{{settingsUrl}}" class="footer-link">Notification Settings</a>
+            </div>
+            <div class="footer-text">
+                You received this email because a comment was added to a task you're involved with in TaskFlow.
+            </div>
+            <div class="footer-text">
+                &copy; 2025 TaskFlow. All rights reserved.
+            </div>
+            <div class="social-links">
+                <a href="#" class="social-link">📧</a>
+                <a href="#" class="social-link">🐦</a>
+                <a href="#" class="social-link">💼</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
