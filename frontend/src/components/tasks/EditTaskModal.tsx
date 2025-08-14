@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Task, TaskPriority, TaskStatus } from '@/types/task';
@@ -22,7 +22,7 @@ interface EditTaskModalProps {
 
 export const EditTaskModal = ({ task, users, isOpen, onClose, onUpdateTask, isLoading = false }: EditTaskModalProps) => {
   const { user } = useAuth();
-  
+
   // Handle assignee - convert object to string ID if needed
   const getAssigneeId = (assignee: any): string => {
     if (typeof assignee === 'string') {
@@ -43,11 +43,12 @@ export const EditTaskModal = ({ task, users, isOpen, onClose, onUpdateTask, isLo
     tags: task.tags.join(', ')
   });
 
+
   const { toast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.title.trim()) {
       toast({
         title: "Error",
@@ -69,7 +70,7 @@ export const EditTaskModal = ({ task, users, isOpen, onClose, onUpdateTask, isLo
     };
     onUpdateTask(task._id, updates);
     onClose();
-    
+
     toast({
       title: "Success",
       description: "Task updated successfully",
@@ -86,7 +87,7 @@ export const EditTaskModal = ({ task, users, isOpen, onClose, onUpdateTask, isLo
         <DialogHeader>
           <DialogTitle>Edit Task</DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="title">Title</Label>
@@ -101,12 +102,12 @@ export const EditTaskModal = ({ task, users, isOpen, onClose, onUpdateTask, isLo
 
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
-            <Textarea
+            <RichTextEditor
               id="description"
               value={formData.description}
-              onChange={(e) => handleInputChange('description', e.target.value)}
-              placeholder="Enter task description"
-              rows={3}
+              onChange={(value) => handleInputChange('description', value)}
+              placeholder="Describe your task..."
+              minHeight="80px"
             />
           </div>
 
@@ -190,15 +191,15 @@ export const EditTaskModal = ({ task, users, isOpen, onClose, onUpdateTask, isLo
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               onClick={onClose}
               disabled={isLoading}
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               type="submit"
               disabled={isLoading}
             >

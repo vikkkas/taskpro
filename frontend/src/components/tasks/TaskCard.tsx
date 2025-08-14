@@ -158,38 +158,48 @@ export const TaskCard = ({
   };
 
   const assignedUser = (() => {
-    // If task.assignee is already a populated user object, use it directly
-    if (task.assignee && typeof task.assignee === "object") {
-      return task.assignee;
+    if (task.assignee && typeof task.assignee === "object" && 'role' in task.assignee) {
+      return task.assignee as User;
     }
 
-    // If task.assignee is a string (user ID), find the user in the users array
     if (typeof task.assignee === "string") {
-      return users.find((u) => {
+      return users?.find((u) => {
         const userId = u._id || u.id;
         return userId === task.assignee;
-      });
+      }) || null;
     }
 
     return null;
   })();
 
   const today = new Date();
-  today.setHours(0, 0, 0, 0); // Set to start of day for accurate comparison
+  today.setHours(0, 0, 0, 0); 
 
   const dueDate = task.dueDate ? new Date(task.dueDate) : null;
   if (dueDate) {
-    dueDate.setHours(0, 0, 0, 0); // Set to start of day for accurate comparison
+    dueDate.setHours(0, 0, 0, 0); 
   }
 
   const isOverdue = dueDate && today > dueDate && task.status !== "completed";
   const isDueToday = dueDate && today.getTime() === dueDate.getTime() && task.status !== "completed";
-
-  // Check if any operation is loading
   const isAnyLoading = Object.values(isLoading).some(Boolean);
 
-  // Check if description is long (more than 100 characters)
   const isDescriptionLong = task.description.length > 100;
+
+  const getTrimmedDescription = (htmlContent: string, maxLength: number = 100) => {
+    const textContent = htmlContent.replace(/<[^>]*>/g, '');
+    
+    if (textContent.length <= maxLength) {
+      return htmlContent;
+    }
+    
+    const truncatedText = textContent.substring(0, maxLength).trim();
+    
+    if (htmlContent !== textContent) {
+      return truncatedText + '...';
+    }
+    return truncatedText + '...';
+  };
 
   return (
     <Card
@@ -211,9 +221,11 @@ export const TaskCard = ({
               )}
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground line-clamp-2">
-                {task.description}
-              </p>
+              <div 
+                className="text-sm text-muted-foreground whitespace-pre-wrap rich-text-content"
+                dangerouslySetInnerHTML={{ __html: getTrimmedDescription(task.description) }} 
+              />
+
                 <TaskDetailsModal
                   task={task}
                   assignedUser={assignedUser}
