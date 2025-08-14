@@ -120,4 +120,41 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Prevent theme transition flash */
+  html {
+    transition: none !important;
+  }
+  
+  /* Disable all transitions during theme change */
+  html.changing-theme *,
+  html.changing-theme *::before,
+  html.changing-theme *::after {
+    transition: none !important;
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+  
+  /* Ensure immediate theme application */
+  :root {
+    color-scheme: light;
+  }
+  
+  :root.dark {
+    color-scheme: dark;
+  }
+  
+  /* Ensure all theme-dependent elements update together */
+  body,
+  [data-theme],
+  .bg-background,
+  .bg-card,
+  .bg-popover,
+  .bg-primary,
+  .bg-secondary,
+  .bg-muted,
+  .bg-accent,
+  .bg-destructive {
+    transition: none !important;
+  }
 }

@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChangePasswordModal } from '@/components/auth/ChangePasswordModal';
 import { LogOut, Clock, Users, BarChart3, Settings } from 'lucide-react';
@@ -43,6 +44,8 @@ export const Header = () => {
               <p className="text-xs capitalize text-muted-foreground">{user.role}</p>
             </div>
           </div>
+
+          <ThemeToggle />
 
           <Button 
             variant="ghost" 
