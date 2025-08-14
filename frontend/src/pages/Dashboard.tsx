@@ -50,6 +50,13 @@ export const Dashboard = () => {
   const [showSessionsModal, setShowSessionsModal] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('tasks');
+  const [taskLoadingStates, setTaskLoadingStates] = useState<Record<string, {
+    timer?: boolean;
+    status?: boolean;
+    delete?: boolean;
+    update?: boolean;
+  }>>({});
 
   // Helper function to get user ID (handles both _id and id)
   const getUserId = (user: User): string => user._id || user.id || '';
@@ -186,6 +193,13 @@ export const Dashboard = () => {
       }
     }
   }, [user])
+
+  // Fetch tasks whenever tab changes
+  useEffect(() => {
+    if (user) {
+      getAllTasks();
+    }
+  }, [activeTab, user])
   
   const fetchUsers = async () => {
     try {
@@ -230,6 +244,7 @@ export const Dashboard = () => {
     dueDate?: string;
     tags: string[];
   }) => {
+    setLoading(true);
     // Prepare the task data for backend (convert empty assignee to null/undefined)
     const backendTaskData = {
       ...taskData,
@@ -250,14 +265,30 @@ export const Dashboard = () => {
 
     try{
       const response = await postAPI(TASK.CREATE, backendTaskData);
+      setTasks(prev => [newTask, ...prev]);
+      toast({
+        title: "Success",
+        description: "Task created successfully",
+      });
     }
     catch(error) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to create task",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-
-    setTasks(prev => [newTask, ...prev]);
   };
 
   const handleUpdateTask = async(taskId: string, updates: Partial<Task>) => {
+    // Set loading state for update
+    setTaskLoadingStates(prev => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], update: true }
+    }));
+
     try{
       const task = tasks.find(t => t._id === taskId);
       if (!task) {
@@ -271,22 +302,55 @@ export const Dashboard = () => {
           title: "Success",
           description: "Task updated successfully",
         });
-    }}
-    catch(error) {
-      // toast({
-      //   title: "Error",
-      //   description: error?.message,
-      //   variant: "destructive",
-      // });
+      }
+      
+      setTasks(prev => prev.map(task => 
+        task._id === taskId 
+          ? { ...task, ...updates, updatedAt: new Date().toISOString() }
+          : task
+      ));
     }
-    setTasks(prev => prev.map(  task => 
-      task._id === taskId 
-        ? { ...task, ...updates, updatedAt: new Date().toISOString() }
-        : task
-    ));
+    catch(error) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to update task",
+        variant: "destructive",
+      });
+    } finally {
+      // Clear loading state for update
+      setTaskLoadingStates(prev => ({
+        ...prev,
+        [taskId]: { ...prev[taskId], update: false }
+      }));
+    }
+  };
+
+  // Helper function to handle status updates with loading
+  const handleStatusUpdate = async (taskId: string, newStatus: TaskStatus) => {
+    // Set loading state for status
+    setTaskLoadingStates(prev => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], status: true }
+    }));
+
+    try {
+      await handleUpdateTask(taskId, { status: newStatus });
+    } finally {
+      // Clear loading state for status
+      setTaskLoadingStates(prev => ({
+        ...prev,
+        [taskId]: { ...prev[taskId], status: false }
+      }));
+    }
   };
 
   const handleDeleteTask = async(taskId: string) => {
+    // Set loading state for delete
+    setTaskLoadingStates(prev => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], delete: true }
+    }));
+
     try{
       const task = tasks.find(t => t._id === taskId);
       if (!task) {
@@ -301,19 +365,34 @@ export const Dashboard = () => {
         toast({
           title: "Success",
           description: "Task deleted successfully",
-      });
-    }}
+        });
+      }
+      
+      setTasks(prev => prev.filter(task => task._id !== taskId));
+    }
     catch(error) {
       toast({
         title: "Error",
-        description: error?.message,
+        description: error?.message || "Failed to delete task",
         variant: "destructive",
       });
+    } finally {
+      // Clear loading state for delete
+      setTaskLoadingStates(prev => {
+        const newStates = { ...prev };
+        delete newStates[taskId]; // Remove the entire loading state for deleted task
+        return newStates;
+      });
     }
-    setTasks(prev => prev.filter(task => task._id !== taskId));
   };
 
   const handleStartTimer = async (taskId: string) => {
+    // Set loading state for timer
+    setTaskLoadingStates(prev => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], timer: true }
+    }));
+
     try {
       const response = await postAPIWithoutBody(TASK.TIMER_START(taskId));
       if (response.data?.success) {
@@ -330,13 +409,25 @@ export const Dashboard = () => {
     } catch (error) {
       toast({
         title: "Error",
-        description: error?.message,
+        description: error?.message || "Failed to start timer",
         variant: "destructive",
       });
+    } finally {
+      // Clear loading state for timer
+      setTaskLoadingStates(prev => ({
+        ...prev,
+        [taskId]: { ...prev[taskId], timer: false }
+      }));
     }
   };
 
   const handleStopTimer = async (taskId: string) => {
+    // Set loading state for timer
+    setTaskLoadingStates(prev => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], timer: true }
+    }));
+
     try {
       const response = await postAPIWithoutBody(TASK.TIMER_STOP(taskId));
       if (response.data?.success) {
@@ -353,9 +444,15 @@ export const Dashboard = () => {
     } catch (error) {
       toast({
         title: "Error",
-        description: error?.message,
+        description: error?.message || "Failed to stop timer",
         variant: "destructive",
       });
+    } finally {
+      // Clear loading state for timer
+      setTaskLoadingStates(prev => ({
+        ...prev,
+        [taskId]: { ...prev[taskId], timer: false }
+      }));
     }
   };
 
@@ -487,6 +584,7 @@ export const Dashboard = () => {
           onOpenChange={setShowCreateModal}
           users={users}
           onCreateTask={handleCreateTask}
+          isLoading={loading}
         />
         
         <SessionsModal
@@ -574,7 +672,7 @@ export const Dashboard = () => {
         </div>
 
         {/* Main Content */}
-        <Tabs defaultValue="tasks" className="space-y-4">
+        <Tabs defaultValue="tasks" value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className={`grid w-full ${user?.role === 'admin' ? 'grid-cols-5' : 'grid-cols-4'}`}>
             <TabsTrigger value="tasks">Active Tasks</TabsTrigger>
             <TabsTrigger value="completed">Completed</TabsTrigger>
@@ -641,6 +739,7 @@ export const Dashboard = () => {
                               onStartTimer={handleStartTimer}
                               onStopTimer={handleStopTimer}
                               showAssignee={user?.role === 'admin'}
+                              isLoading={taskLoadingStates[task._id] || {}}
                             />
                       ))}
                     </div>
@@ -680,6 +779,7 @@ export const Dashboard = () => {
                     onStartTimer={handleStartTimer}
                     onStopTimer={handleStopTimer}
                     showAssignee={user?.role === 'admin'}
+                    isLoading={taskLoadingStates[task._id] || {}}
                   />
                 ))}
               </div>

@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { TaskPriority } from '@/types/task';
 import { User } from '@/types/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface CreateTaskModalProps {
@@ -23,9 +23,10 @@ interface CreateTaskModalProps {
     dueDate?: string;
     tags: string[];
   }) => void;
+  isLoading?: boolean;
 }
 
-export const CreateTaskModal = ({ open, onOpenChange, users, onCreateTask }: CreateTaskModalProps) => {
+export const CreateTaskModal = ({ open, onOpenChange, users, onCreateTask, isLoading = false }: CreateTaskModalProps) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
@@ -232,10 +233,23 @@ export const CreateTaskModal = ({ open, onOpenChange, users, onCreateTask }: Cre
             <Button 
               type="submit" 
               className="transition-all duration-300 bg-gradient-primary hover:shadow-glow"
+              disabled={isLoading}
             >
-              Create Task
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Task"
+              )}
             </Button>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => onOpenChange(false)}
+              disabled={isLoading}
+            >
               Cancel
             </Button>
           </div>

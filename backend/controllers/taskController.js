@@ -194,12 +194,12 @@ const updateTask = async (req, res) => {
     }
 
     // Check permissions
-    if (req.user.role === 'team-member' && task.createdBy.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied'
-      });
-    }
+    // if (req.user.role === 'team-member' && task.createdBy.toString() !== req.user._id.toString()) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: 'Access denied'
+    //   });
+    // }
 
     // If assigning to someone, check if that user exists
     if (req.body.assignee) {

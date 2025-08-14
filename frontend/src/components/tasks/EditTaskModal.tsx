@@ -9,6 +9,7 @@ import { Task, TaskPriority, TaskStatus } from '@/types/task';
 import { User } from '@/types/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 interface EditTaskModalProps {
   task: Task;
@@ -16,9 +17,10 @@ interface EditTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void;
+  isLoading?: boolean;
 }
 
-export const EditTaskModal = ({ task, users, isOpen, onClose, onUpdateTask }: EditTaskModalProps) => {
+export const EditTaskModal = ({ task, users, isOpen, onClose, onUpdateTask, isLoading = false }: EditTaskModalProps) => {
   const { user } = useAuth();
   
   // Handle assignee - convert object to string ID if needed
@@ -188,11 +190,26 @@ export const EditTaskModal = ({ task, users, isOpen, onClose, onUpdateTask }: Ed
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={onClose}
+              disabled={isLoading}
+            >
               Cancel
             </Button>
-            <Button type="submit">
-              Update Task
+            <Button 
+              type="submit"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                'Update Task'
+              )}
             </Button>
           </div>
         </form>

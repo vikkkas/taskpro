@@ -15,7 +15,7 @@ import { UserRole } from "@/types/auth";
 import { useToast } from "@/hooks/use-toast";
 import { postAPI, setAuthToken } from "@/utils/BasicApi";
 import { AUTH } from "@/utils/apiURL";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 export const LoginForm = () => {
   const [email, setEmail] = useState("");
@@ -81,6 +81,7 @@ export const LoginForm = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={Loading}
               />
             </div>
             <div className="space-y-2">
@@ -94,6 +95,7 @@ export const LoginForm = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   className="pr-10"
+                  disabled={Loading}
                 />
                 <Button
                   type="button"
@@ -101,6 +103,7 @@ export const LoginForm = () => {
                   size="sm"
                   className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                   onClick={() => setShowPassword(!showPassword)}
+                  disabled={Loading}
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4 text-gray-500" />
@@ -134,7 +137,14 @@ export const LoginForm = () => {
               className="w-full transition-all duration-300 bg-gradient-primary hover:shadow-glow"
               disabled={Loading}
             >
-              {Loading ? "Logging in..." : "Login"}
+              {Loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Logging in...
+                </>
+              ) : (
+                "Login"
+              )}
             </Button>
           </form>
 

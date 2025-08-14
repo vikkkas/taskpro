@@ -13,6 +13,7 @@ import { Task, TaskStatus, TaskPriority } from "@/types/task";
 import { User } from "@/types/auth";
 import { TaskComments } from "./TaskComments";
 import { EditTaskModal } from "./EditTaskModal";
+import { TaskDetailsModal } from "./TaskDetailsModal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,6 +36,7 @@ import {
   MessageSquare,
   Edit,
   Trash2,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -48,6 +50,12 @@ interface TaskCardProps {
   onStartTimer: (taskId: string) => void;
   onStopTimer: (taskId: string) => void;
   showAssignee?: boolean;
+  isLoading?: {
+    timer?: boolean;
+    status?: boolean;
+    delete?: boolean;
+    update?: boolean;
+  };
 }
 
 const priorityConfig = {
@@ -76,6 +84,7 @@ export const TaskCard = ({
   onStartTimer,
   onStopTimer,
   showAssignee = false,
+  isLoading = {},
 }: TaskCardProps) => {
   const { user } = useAuth();
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -176,6 +185,12 @@ export const TaskCard = ({
   const isOverdue = dueDate && today > dueDate && task.status !== "completed";
   const isDueToday = dueDate && today.getTime() === dueDate.getTime() && task.status !== "completed";
 
+  // Check if any operation is loading
+  const isAnyLoading = Object.values(isLoading).some(Boolean);
+
+  // Check if description is long (more than 100 characters)
+  const isDescriptionLong = task.description.length > 100;
+
   return (
     <Card
       className={cn(
@@ -195,9 +210,23 @@ export const TaskCard = ({
                 <AlertCircle className={`w-4 h-4 ${isOverdue ? 'text-destructive' : 'text-warning'}`} />
               )}
             </div>
-            <p className="text-xs text-muted-foreground line-clamp-2">
-              {task.description}
-            </p>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground line-clamp-2">
+                {task.description}
+              </p>
+                <TaskDetailsModal
+                  task={task}
+                  assignedUser={assignedUser}
+                  isOverdue={isOverdue}
+                  isDueToday={isDueToday}
+                  formatTime={formatTime}
+                  calculateTimeSpent={calculateTimeSpent}
+                >
+                  <button className="text-xs text-primary hover:text-primary/80 transition-colors">
+                    View Details
+                  </button>
+                </TaskDetailsModal>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 ml-2">
@@ -216,8 +245,13 @@ export const TaskCard = ({
                   variant="ghost"
                   onClick={() => setShowEditModal(true)}
                   className="w-8 h-8 p-0"
+                  disabled={isAnyLoading}
                 >
-                  <Edit className="w-3 h-3" />
+                  {isLoading.update ? (
+                    <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                  ) : (
+                    <Edit className="w-3 h-3" />
+                  )}
                 </Button>
 
                 {onDeleteTask && (
@@ -227,8 +261,13 @@ export const TaskCard = ({
                         size="sm"
                         variant="ghost"
                         className="w-8 h-8 p-0 text-destructive hover:text-destructive"
+                        disabled={isAnyLoading}
                       >
-                        <Trash2 className="w-3 h-3" />
+                        {isLoading.delete ? (
+                          <Loader2 className="w-3 h-3 animate-spin text-destructive" />
+                        ) : (
+                          <Trash2 className="w-3 h-3" />
+                        )}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
@@ -244,8 +283,16 @@ export const TaskCard = ({
                         <AlertDialogAction
                           onClick={handleDeleteTask}
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          disabled={isLoading.delete}
                         >
-                          Delete
+                          {isLoading.delete ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Deleting...
+                            </>
+                          ) : (
+                            'Delete'
+                          )}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -301,9 +348,14 @@ export const TaskCard = ({
             variant={task.isTimerRunning ? "destructive" : "default"}
             onClick={handleTimerToggle}
             className="flex items-center gap-1"
-            disabled={task.status === "completed"}
+            disabled={task.status === "completed" || isLoading.timer}
           >
-            {task.isTimerRunning ? (
+            {isLoading.timer ? (
+              <>
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span className="text-xs">Loading...</span>
+              </>
+            ) : task.isTimerRunning ? (
               <>
                 <Pause className="w-3 h-3" />
                 <span className="text-xs">Stop</span>
@@ -322,6 +374,7 @@ export const TaskCard = ({
                 size="sm"
                 variant="outline"
                 className="flex items-center gap-1"
+                disabled={isAnyLoading}
               >
                 <MessageSquare className="w-3 h-3" />
                 <span className="text-xs">{task.comments?.length || 0}</span>
@@ -349,8 +402,16 @@ export const TaskCard = ({
                 variant={task.status === status ? "default" : "outline"}
                 onClick={() => handleStatusChange(status)}
                 className="text-xs"
+                disabled={isLoading.status || isAnyLoading}
               >
-                {statusConfig[status].label}
+                {isLoading.status ? (
+                  <>
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    {statusConfig[status].label}
+                  </>
+                ) : (
+                  statusConfig[status].label
+                )}
               </Button>
             )
           )}
@@ -373,6 +434,7 @@ export const TaskCard = ({
         isOpen={showEditModal}
         onClose={() => setShowEditModal(false)}
         onUpdateTask={onUpdateTask}
+        isLoading={isLoading.update}
       />
     </Card>
   );
