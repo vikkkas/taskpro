@@ -77,7 +77,7 @@ export const TaskDetailsModal = ({
         <div>
             <h3 className="font-semibold text-lg mb-2">{task.title}</h3>
             <div 
-              className="text-sm text-muted-foreground whitespace-pre-wrap rich-text-content"
+              className="text-sm"
               dangerouslySetInnerHTML={{ __html: task.description }} 
             />
           </div>

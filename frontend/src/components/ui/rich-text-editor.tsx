@@ -177,7 +177,7 @@ export const RichTextEditor = React.forwardRef<HTMLDivElement, RichTextEditorPro
     const showPlaceholder = !value || getPlainText(value).trim() === '';
 
     return (
-      <div className={cn("border rounded-md", className)}>
+      <div className={cn("border rounded-md overflow-hidden max-w-full", className)}>
         {/* Toolbar */}
         <div className="flex items-center gap-1 p-2 border-b bg-muted/30">
           <Button
@@ -269,12 +269,15 @@ export const RichTextEditor = React.forwardRef<HTMLDivElement, RichTextEditorPro
             onFocus={handleFocus}
             onBlur={handleBlur}
             className={cn(
-              "w-full p-3 text-sm bg-background focus:outline-none",
+              "w-full p-3 text-sm bg-background focus:outline-none break-words overflow-wrap-anywhere whitespace-pre-wrap",
               showPlaceholder && !isFocused && "text-transparent"
             )}
             style={{ 
               minHeight,
-              caretColor: '#000000'
+              caretColor: '#000000',
+              wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
+              maxWidth: '100%'
             }}
           />
           

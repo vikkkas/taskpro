@@ -222,9 +222,29 @@ export const TaskCard = ({
             </div>
             <div className="space-y-1">
               <div 
-                className="text-sm text-muted-foreground whitespace-pre-wrap rich-text-content"
+                className="text-sm whitespace-pre-wrap break-words overflow-wrap-anywhere max-w-full rich-text-content"
                 dangerouslySetInnerHTML={{ __html: getTrimmedDescription(task.description) }} 
+                style={{ 
+                  wordBreak: 'break-word',
+                  overflowWrap: 'anywhere'
+                }}
               />
+            
+              <style dangerouslySetInnerHTML={{
+                __html: `
+                  .rich-text-content b,
+                  .rich-text-content strong {
+                    font-weight: bold !important;
+                  }
+                  .rich-text-content i,
+                  .rich-text-content em {
+                    font-style: italic !important;
+                  }
+                  .rich-text-content u {
+                    text-decoration: underline !important;
+                  }
+                `
+              }} />
 
                 <TaskDetailsModal
                   task={task}
