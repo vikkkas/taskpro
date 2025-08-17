@@ -189,7 +189,7 @@ export const TaskCard = ({
   
   const isAnyLoading = Object.values(isLoading).some(Boolean);
 
-  const isDescriptionLong = task.description.length > 100;
+  const isDescriptionLong = task.description.length > 30;
 
   const getTrimmedDescription = (htmlContent: string, maxLength: number = 100) => {
     const textContent = htmlContent.replace(/<[^>]*>/g, '');
@@ -220,12 +220,16 @@ export const TaskCard = ({
         <div className="flex items-start justify-between">
           <div className="flex-1 space-y-2">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold leading-tight">
-                {task.title}
-              </h3>
-              {(isOverdue || isDueToday) && (
-                <AlertCircle className={`w-4 h-4 ${isOverdue ? 'text-destructive' : 'text-warning'}`} />
-              )}
+              <div className="flex items-center gap-1">
+                <h3 className="text-sm font-semibold leading-tight">
+                  {task.title}
+                </h3>
+                {(isOverdue || isDueToday) && (
+                  <span className="flex items-center">
+                    <AlertCircle className={`w-4 h-4 ${isOverdue ? 'text-destructive' : 'text-warning'}`} />
+                  </span>
+                )}
+              </div>
             </div>
             <div className="space-y-1">
               <div 
@@ -491,4 +495,4 @@ export const TaskCard = ({
       />
     </Card>
   );
-};
+}
