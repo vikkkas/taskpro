@@ -269,6 +269,14 @@ export const TaskCard = ({
               >
                 {task.priority}
               </Badge>
+              <Badge
+                variant="secondary"
+                className="text-xs text-blue-500 bg-blue-100"
+              >
+                {typeof task.assignee === "object" && task.assignee !== null && "name" in task.assignee
+                  ? task.assignee.name
+                  : "Unassigned"}
+              </Badge>
             </div>
             {user?.role === "admin" ? (
               <div className="flex items-center gap-1">
