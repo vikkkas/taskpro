@@ -174,7 +174,7 @@ const result = await sendTaskCompletedEmail(taskData, completedByData, recipient
 ## Template Variables
 
 ### Common Variables (Available in all templates)
-- `{{dashboardUrl}}` - Link to dashboard
+- `https://tasks.divinermedia.com/` - Link to dashboard
 - `{{supportUrl}}` - Link to support page
 - `{{settingsUrl}}` - Link to notification settings
 - `{{helpUrl}}` - Link to help center
@@ -197,7 +197,7 @@ const result = await sendTaskCompletedEmail(taskData, completedByData, recipient
 - `{{taskPriority}}` - Task priority (CSS class format)
 - `{{taskPriorityDisplay}}` - Task priority (display format)
 - `{{taskDueDate}}` - Formatted due date
-- `{{taskUrl}}` - Direct link to task
+- `https://tasks.divinermedia.com/` - Direct link to task
 - `{{assigneeName}}` - Name of assigned user
 - `{{assignerName}}` - Name of user who assigned the task
 
