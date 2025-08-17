@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
+const { sendWelcomeEmail } = require('../utils/emailService');
 const { validationResult } = require('express-validator');
 
 // @desc    Register new user
@@ -12,7 +13,7 @@ const registerUser = async (req, res) => {
     const { name, email, password, role, department } = req.body;
     
     // Use provided password or default password
-    const userPassword = password || process.env.NEW_USER_DEFAULT_PASSWORD || 'defaultPass123';
+    const userPassword = password || process.env.NEW_USER_DEFAULT_PASSWORD;
     // Check if user exists
     const userExists = await User.findOne({ email });
     if (userExists) {
@@ -32,6 +33,21 @@ const registerUser = async (req, res) => {
     });
 
     if (user) {
+      // Send welcome email
+      const welcomeEmailData = {
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        department: user.department,
+        showCredentials: true, // Always show credentials for new registrations
+        tempPassword: userPassword // Include the password (either provided or default)
+      };
+      
+      const emailResponse = await sendWelcomeEmail(welcomeEmailData);
+      if (!emailResponse.success) {
+        console.log('Warning: Welcome email could not be sent:', emailResponse.message);
+      }
+      
       res.status(201).json({
         success: true,
         data: {

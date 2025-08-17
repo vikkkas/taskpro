@@ -1,6 +1,12 @@
 const Task = require('../models/Task');
 const User = require('../models/User');
 const { validationResult } = require('express-validator');
+const { 
+  sendTaskAssignedEmail, 
+  sendTaskUpdateEmail, 
+  sendTaskCompletedEmail,
+  sendTaskCommentEmail 
+} = require('../utils/emailService');
 
 // @desc    Get all tasks
 // @route   GET /api/tasks
@@ -166,6 +172,22 @@ const createTask = async (req, res) => {
       .populate('assignee', 'name email department avatar')
       .populate('createdBy', 'name email department avatar');
 
+    // Send email notification if task is assigned to someone
+    if (assignee && assignee !== req.user._id.toString()) {
+      try {
+        const assigneeUser = await User.findById(assignee);
+        if (assigneeUser) {
+          await sendTaskAssignedEmail(
+            populatedTask,
+            assigneeUser,
+            req.user
+          );
+        }
+      } catch (emailError) {
+        console.log('Warning: Task assignment email could not be sent:', emailError.message);
+      }
+    }
+
     res.status(201).json({
       success: true,
       data: populatedTask
@@ -184,7 +206,9 @@ const createTask = async (req, res) => {
 // @access  Private
 const updateTask = async (req, res) => {
   try {
-    const task = await Task.findById(req.params.id);
+    const task = await Task.findById(req.params.id)
+      .populate('assignee', 'name email department avatar')
+      .populate('createdBy', 'name email department avatar');
 
     if (!task) {
       return res.status(404).json({
@@ -219,6 +243,56 @@ const updateTask = async (req, res) => {
     ).populate('assignee', 'name email department avatar')
      .populate('createdBy', 'name email department avatar')
      .populate('comments.authorId', 'name email avatar');
+
+    // Send email notifications for updates
+    const notifyUsers = [];
+    
+    // Notify assignee if different from updater
+    if (updatedTask.assignee && updatedTask.assignee._id.toString() !== req.user._id.toString()) {
+      notifyUsers.push(updatedTask.assignee);
+    }
+    
+    // Notify creator if different from updater and assignee
+    if (updatedTask.createdBy._id.toString() !== req.user._id.toString() && 
+        (!updatedTask.assignee || updatedTask.createdBy._id.toString() !== updatedTask.assignee._id.toString())) {
+      notifyUsers.push(updatedTask.createdBy);
+    }
+
+    // Send emails to relevant users
+    for (const user of notifyUsers) {
+      try {
+        await sendTaskUpdateEmail(
+          updatedTask,
+          req.user,
+          user
+        );
+      } catch (emailError) {
+        console.log(`Warning: Task update email could not be sent to ${user.email}:`, emailError.message);
+      }
+    }
+
+    // Check if task was completed and send completion email
+    if (updatedTask.status === 'completed') {
+      const notifyUsers = [];
+      
+      // Notify creator if different from the person who completed it
+      if (updatedTask.createdBy._id.toString() !== req.user._id.toString()) {
+        notifyUsers.push(updatedTask.createdBy);
+      }
+      
+      // Notify other stakeholders (you can expand this logic)
+      for (const user of notifyUsers) {
+        try {
+          await sendTaskCompletedEmail(
+            updatedTask,
+            req.user,
+            user
+          );
+        } catch (emailError) {
+          console.log(`Warning: Task completion email could not be sent to ${user.email}:`, emailError.message);
+        }
+      }
+    }
 
     res.json({
       success: true,
@@ -417,6 +491,40 @@ const addComment = async (req, res) => {
       .populate('assignee', 'name email department avatar')
       .populate('createdBy', 'name email department avatar')
       .populate('comments.authorId', 'name email avatar');
+
+    // Send email notifications for new comments
+    try {
+      const notifyUsers = [];
+      
+      // Notify assignee if different from comment author
+      if (task.assignee && task.assignee.toString() !== req.user._id.toString()) {
+        const assigneeUser = await User.findById(task.assignee);
+        if (assigneeUser) notifyUsers.push(assigneeUser);
+      }
+      
+      // Notify creator if different from comment author and assignee
+      if (task.createdBy.toString() !== req.user._id.toString() && 
+          (!task.assignee || task.createdBy.toString() !== task.assignee.toString())) {
+        const creatorUser = await User.findById(task.createdBy);
+        if (creatorUser) notifyUsers.push(creatorUser);
+      }
+
+      // Send email notifications about the comment
+      for (const user of notifyUsers) {
+        try {
+          await sendTaskCommentEmail(
+            updatedTask,
+            comment,
+            req.user,
+            user
+          );
+        } catch (emailError) {
+          console.log(`Warning: Comment notification email could not be sent to ${user.email}:`, emailError.message);
+        }
+      }
+    } catch (notificationError) {
+      console.log('Warning: Comment notification failed:', notificationError.message);
+    }
 
     res.json({
       success: true,
