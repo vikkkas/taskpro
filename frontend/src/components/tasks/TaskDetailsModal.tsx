@@ -74,13 +74,14 @@ export const TaskDetailsModal = ({
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div>
+        <div>
             <h3 className="font-semibold text-lg mb-2">{task.title}</h3>
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-              {task.description}
-            </p>
+            <div 
+              className="text-sm"
+              dangerouslySetInnerHTML={{ __html: task.description }} 
+            />
           </div>
-          
+
           {assignedUser && (
             <div className="flex items-center gap-2 text-sm">
               <UserIcon className="w-4 h-4" />

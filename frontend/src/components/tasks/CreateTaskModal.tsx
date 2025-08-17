@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TaskPriority } from '@/types/task';
@@ -127,17 +127,17 @@ export const CreateTaskModal = ({ open, onOpenChange, users, onCreateTask, isLoa
 
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
-            <Textarea
+            <RichTextEditor
               id="description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={setDescription}
               placeholder="Describe your task..."
-              className="min-h-[80px]"
+              minHeight="80px"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="flex gap-4">
+            <div className="flex-[30] space-y-2">
               <Label htmlFor="priority">Priority</Label>
               <Select value={priority} onValueChange={(value: TaskPriority) => setPriority(value)}>
                 <SelectTrigger>
@@ -151,8 +151,8 @@ export const CreateTaskModal = ({ open, onOpenChange, users, onCreateTask, isLoa
               </Select>
             </div>
 
-            {user?.role === 'admin' && (
-              <div className="space-y-2">
+            {user?.role === 'admin' ? (
+              <div className="flex-[50] space-y-2">
                 <Label htmlFor="assignee">Assign To</Label>
                 <Select value={assignee} onValueChange={setAssignee}>
                   <SelectTrigger>
@@ -181,9 +181,11 @@ export const CreateTaskModal = ({ open, onOpenChange, users, onCreateTask, isLoa
                   </SelectContent>
                 </Select>
               </div>
+            ) : (
+              <div className="flex-[40]"></div>
             )}
 
-            <div className="space-y-2">
+            <div className="flex-[20] space-y-2">
               <Label htmlFor="dueDate">Due Date</Label>
               <Input
                 id="dueDate"
@@ -194,37 +196,42 @@ export const CreateTaskModal = ({ open, onOpenChange, users, onCreateTask, isLoa
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="tags">Tags</Label>
-            <div className="flex gap-2">
-              <Input
-                id="tags"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Add tags..."
-              />
-              <Button type="button" onClick={handleAddTag} variant="outline" size="sm">
-                Add
-              </Button>
+          <div className="flex gap-4">
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="tags">Tags</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="tags"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Add tags..."
+                />
+                <Button type="button" onClick={handleAddTag} variant="outline" size="sm">
+                  Add
+                </Button>
+              </div>
             </div>
+
             {tags.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {tags.map((tag) => (
-                  <div
-                    key={tag}
-                    className="flex items-center gap-1 px-2 py-1 text-sm rounded-md bg-primary/10 text-primary"
-                  >
-                    #{tag}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTag(tag)}
-                      className="hover:text-destructive"
+              <div className="flex-1 space-y-2">
+                <div className="flex flex-wrap gap-1 p-2 rounded-md mt-7">
+                  {tags.map((tag) => (
+                    <div
+                      key={tag}
+                      className="flex items-center gap-1 px-2 py-1 text-sm rounded-md bg-primary/10 text-primary"
                     >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
+                      #{tag}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(tag)}
+                        className="hover:text-destructive"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
