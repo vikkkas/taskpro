@@ -296,7 +296,7 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
 
       {/* Member-specific summary for admin when a specific user is selected */}
       {user?.role === 'admin' && selectedUserId && selectedUserId !== 'all' && (
-        <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+  <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 dark:bg-gradient-to-r dark:from-gray-900 dark:to-gray-800 dark:border-gray-700 dark:text-white">
           <CardContent className="p-6">
             <div className="flex items-center gap-4 mb-4">
               {(() => {
@@ -310,7 +310,7 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
                       className="w-12 h-12 rounded-full"
                     />
                     <div>
-                      <h3 className="text-lg font-semibold">{selectedUser.name}</h3>
+                      <h3 className="text-lg font-semibold text-black dark:text-white">{selectedUser.name}</h3>
                       <p className="text-sm text-muted-foreground">
                         {selectedUser.department} • {selectedUser.role}
                       </p>
@@ -417,7 +417,7 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
                   Time Tracking ({timePeriod})
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent> 
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={timeSeriesData}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -425,6 +425,9 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
                     <YAxis />
                     <Tooltip 
                       formatter={(value, name) => [`${value}h`, name === 'timeSpent' ? 'Hours' : 'Tasks']}
+                      contentStyle={{ color: '#000', background: '#fff', borderRadius: 8, border: '1px solid #eee' }}
+                      itemStyle={{ color: '#000' }}
+                      labelStyle={{ color: '#000' }}
                     />
                     <Bar dataKey="timeSpent" fill="hsl(var(--primary))" />
                   </BarChart>
@@ -446,7 +449,12 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="period" />
                     <YAxis />
-                    <Tooltip formatter={(value) => [`${value}`, 'Tasks Completed']} />
+                    <Tooltip 
+                      formatter={(value) => [`${value}`, 'Tasks Completed']}
+                      contentStyle={{ color: '#000', background: '#fff', borderRadius: 8, border: '1px solid #eee' }}
+                      itemStyle={{ color: '#000' }}
+                      labelStyle={{ color: '#000' }}
+                    />
                     <Line 
                       type="monotone" 
                       dataKey="tasksCompleted" 
@@ -486,7 +494,11 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip 
+                      contentStyle={{ color: '#000', background: '#fff', borderRadius: 8, border: '1px solid #eee' }}
+                      itemStyle={{ color: '#000' }}
+                      labelStyle={{ color: '#000' }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="flex justify-center gap-4 mt-4">
@@ -527,7 +539,11 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip 
+                      contentStyle={{ color: '#000', background: '#fff', borderRadius: 8, border: '1px solid #eee' }}
+                      itemStyle={{ color: '#000' }}
+                      labelStyle={{ color: '#000' }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="flex justify-center gap-4 mt-4">
