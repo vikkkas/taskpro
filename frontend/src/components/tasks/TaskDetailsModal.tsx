@@ -20,6 +20,7 @@ interface TaskDetailsModalProps {
   assignedUser: User | null;
   isOverdue: boolean;
   isDueToday: boolean;
+  completedAfterDue?: boolean;
   formatTime: (minutes: number) => string;
   calculateTimeSpent: () => number;
   children: React.ReactNode; // Trigger element
@@ -48,6 +49,7 @@ export const TaskDetailsModal = ({
   assignedUser,
   isOverdue,
   isDueToday,
+  completedAfterDue = false,
   formatTime,
   calculateTimeSpent,
   children,
@@ -70,6 +72,11 @@ export const TaskDetailsModal = ({
               <Badge className={statusConfig[task.status].color}>
                 {statusConfig[task.status].label}
               </Badge>
+              {completedAfterDue && (
+                <Badge variant="outline" className="text-xs border-orange-500 text-orange-600 bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400">
+                  Late Completion
+                </Badge>
+              )}
             </div>
           </DialogTitle>
         </DialogHeader>
@@ -106,7 +113,12 @@ export const TaskDetailsModal = ({
               )}
               {isDueToday && (
                 <Badge variant="outline" className="text-xs border-warning text-warning bg-warning/10 ml-2">
-                  Hurry Up!
+                  Due Today
+                </Badge>
+              )}
+              {completedAfterDue && (
+                <Badge variant="outline" className="text-xs border-orange-500 text-orange-600 bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400 ml-2">
+                  Completed Late
                 </Badge>
               )}
             </div>
