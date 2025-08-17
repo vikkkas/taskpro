@@ -182,11 +182,6 @@ export const TaskCard = ({
 
   const isOverdue = dueDate && today > dueDate && task.status !== "completed";
   const isDueToday = dueDate && today.getTime() === dueDate.getTime() && task.status !== "completed";
-  
-  // Check if task was completed after due date
-  const completedAfterDue = dueDate && task.status === "completed" && task.updatedAt && 
-    new Date(task.updatedAt) > dueDate;
-  
   const isAnyLoading = Object.values(isLoading).some(Boolean);
 
   const isDescriptionLong = task.description.length > 30;
@@ -211,9 +206,7 @@ export const TaskCard = ({
       className={cn(
         "transition-all duration-300 hover:shadow-elegant",
         task.isTimerRunning &&
-          "ring-2 ring-primary shadow-glow animate-pulse-glow",
-        completedAfterDue &&
-          "border-orange-300 bg-orange-50/50 dark:bg-orange-950/20 dark:border-orange-700"
+          "ring-2 ring-primary shadow-glow animate-pulse-glow"
       )}
     >
       <CardHeader className="pb-3">
@@ -262,7 +255,6 @@ export const TaskCard = ({
                   assignedUser={assignedUser}
                   isOverdue={isOverdue}
                   isDueToday={isDueToday}
-                  completedAfterDue={completedAfterDue}
                   formatTime={formatTime}
                   calculateTimeSpent={calculateTimeSpent}
                 >
@@ -388,12 +380,7 @@ export const TaskCard = ({
             )}
             {isDueToday && (
               <Badge variant="outline" className="text-xs border-warning text-warning bg-warning/10">
-                Due Today
-              </Badge>
-            )}
-            {completedAfterDue && (
-              <Badge variant="outline" className="text-xs border-orange-500 text-orange-600 bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400">
-                Completed Late
+                Hurry Up!
               </Badge>
             )}
           </div>
@@ -495,4 +482,4 @@ export const TaskCard = ({
       />
     </Card>
   );
-}
+};
