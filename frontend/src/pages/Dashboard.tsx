@@ -723,6 +723,9 @@ export const Dashboard = () => {
                   {viewMode === 'kanban' ? (
                         <KanbanBoard 
                           tasks={filteredTasks} 
+                          users={users}
+                          onStartTimer={handleStartTimer}
+                          onStopTimer={handleStopTimer}
                           onUpdateTask={handleUpdateTask}
                           onDeleteTask={handleDeleteTask}
                           selectedUserId={selectedUserId}

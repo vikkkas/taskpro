@@ -3,12 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { TaskCard } from './TaskCard';
 import { Task, TaskStatus } from '@/types/task';
+import { User } from '@/types/auth';
 import { CheckCircle, Clock, Play } from 'lucide-react';
 
 interface KanbanBoardProps {
   tasks: Task[];
+  users: User[];
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void;
   onDeleteTask?: (taskId: string) => void;
+  onStartTimer: (taskId: string) => void;
+  onStopTimer: (taskId: string) => void;
   selectedUserId?: string;
 }
 
@@ -30,7 +34,7 @@ const statusConfig = {
   },
 };
 
-export const KanbanBoard = ({ tasks, onUpdateTask, onDeleteTask, selectedUserId }: KanbanBoardProps) => {
+export const KanbanBoard = ({ tasks, users, onUpdateTask, onDeleteTask, onStartTimer, onStopTimer, selectedUserId }: KanbanBoardProps) => {
   const tasksByStatus = useMemo(() => {
     const grouped = {
       todo: [] as Task[],
@@ -74,10 +78,13 @@ export const KanbanBoard = ({ tasks, onUpdateTask, onDeleteTask, selectedUserId 
               ) : (
                 statusTasks.map(task => (
                   <TaskCard
-                    key={task.id}
+                    key={task._id}
                     task={task}
+                    users={users}
                     onUpdateTask={onUpdateTask}
                     onDeleteTask={onDeleteTask}
+                    onStartTimer={onStartTimer}
+                    onStopTimer={onStopTimer}
                     showAssignee={true}
                   />
                 ))
