@@ -58,14 +58,26 @@ const getTasks = async (req, res) => {
     if (req.query.includeArchived !== 'true') {
       query.isArchived = { $ne: true };
     }
+    const priorityOrder = { high: 0, medium: 1, low: 2 };
 
     const tasks = await Task.find(query)
       .populate('assignee', 'name email department avatar')
       .populate('createdBy', 'name email department avatar')
       .populate('comments.authorId', 'name email avatar')
-      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
+
+    tasks.sort((a, b) => {
+      if (a.dueDate && b.dueDate) {
+        const dateA = new Date(a.dueDate).getTime();
+        const dateB = new Date(b.dueDate).getTime();
+        if (dateA !== dateB) return dateA - dateB;
+        return priorityOrder[a.priority] - priorityOrder[b.priority];
+      }
+      if (a.dueDate && !b.dueDate) return -1;
+      if (!a.dueDate && b.dueDate) return 1;
+      return priorityOrder[a.priority] - priorityOrder[b.priority];
+    });
 
     const total = await Task.countDocuments(query);
 
