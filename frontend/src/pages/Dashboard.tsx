@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TaskPagination } from '@/components/ui/task-pagination';
 import { useAuth } from '@/contexts/AuthContext';
 import { Task, TaskStatus, TaskPriority } from '@/types/task';
 import { User } from '@/types/auth';
@@ -36,6 +37,13 @@ import {
   List
 } from 'lucide-react';
 
+interface PaginationData {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
+
 export const Dashboard = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -57,6 +65,16 @@ export const Dashboard = () => {
     delete?: boolean;
     update?: boolean;
   }>>({});
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [paginationData, setPaginationData] = useState<PaginationData>({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 1
+  });
 
   // Helper function to get user ID (handles both _id and id)
   const getUserId = (user: User): string => user._id || user.id || '';
@@ -65,7 +83,8 @@ export const Dashboard = () => {
     return user._id || user.id || '';
   };
 
-  // Filter tasks based on user role
+  // Since tasks are now filtered on the backend, we use them directly for display
+  // but still need client-side filtering for role-based access
   const userTasks = useMemo(() => {
     if (!user) {
       return [];
@@ -93,70 +112,30 @@ export const Dashboard = () => {
     return filtered;
   }, [tasks, user]);
 
-  // Filter tasks by selected user (admin only)
-  const adminFilteredTasks = useMemo(() => {
-    if (user?.role !== 'admin' || selectedUserId === 'all') {
-      return userTasks;
-    }
-    
-    // Filter tasks by the selected user ID
-    const filtered = userTasks.filter(task => {
-      // Handle both string and object assignees
-      let assigneeId = null;
-      
-      if (typeof task.assignee === 'string') {
-        assigneeId = task.assignee;
-      } else if (task.assignee && typeof task.assignee === 'object') {
-        assigneeId = task.assignee._id || task.assignee.id;
-      }
-      
-      return assigneeId === selectedUserId;
-    });
-    
-    return filtered;
-  }, [userTasks, selectedUserId, user?.role]);
+  // For display purposes, use the paginated tasks directly
+  const displayTasks = useMemo(() => {
+    return user?.role === 'admin' ? tasks : userTasks;
+  }, [tasks, userTasks, user?.role]);
 
   // Apply filters to active tasks (non-completed)
   const filteredActiveTasks = useMemo(() => {
-    return adminFilteredTasks.filter(task => {
-      const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           task.description.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
-      const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
-      const isNotCompleted = task.status !== 'completed';
-      
-      return matchesSearch && matchesStatus && matchesPriority && isNotCompleted;
-    });
-  }, [adminFilteredTasks, searchQuery, statusFilter, priorityFilter]);
+    return displayTasks.filter(task => task.status !== 'completed');
+  }, [displayTasks]);
 
   // Apply filters to completed tasks
   const filteredCompletedTasks = useMemo(() => {
-    return adminFilteredTasks.filter(task => {
-      const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           task.description.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
-      const isCompleted = task.status === 'completed';
-      
-      return matchesSearch && matchesPriority && isCompleted;
-    });
-  }, [adminFilteredTasks, searchQuery, priorityFilter]);
+    return displayTasks.filter(task => task.status === 'completed');
+  }, [displayTasks]);
 
   // Keep original filteredTasks for backward compatibility
   const filteredTasks = useMemo(() => {
-    return adminFilteredTasks.filter(task => {
-      const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           task.description.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
-      const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
-      
-      return matchesSearch && matchesStatus && matchesPriority;
-    });
-  }, [adminFilteredTasks, searchQuery, statusFilter, priorityFilter]);
+    return displayTasks;
+  }, [displayTasks]);
 
   // Calculate statistics
   const stats = useMemo(() => {
-    // Use adminFilteredTasks for calculations to reflect current filter
-    const tasksForStats = user?.role === 'admin' ? adminFilteredTasks : userTasks;
+    // Use displayTasks for calculations to reflect current filter
+    const tasksForStats = displayTasks;
     
     const totalTasks = tasksForStats.length;
     const completedTasks = tasksForStats.filter(t => t.status === 'completed').length;
@@ -170,7 +149,7 @@ export const Dashboard = () => {
     if (user?.role === 'admin') {
       const activeUsers = [...new Set(tasksForStats.map(t => t.assignee))].length;
       return {
-        totalTasks,
+        totalTasks: paginationData.total, // Use total from pagination for accurate count
         activeUsers,
         activeTasks,
         totalTimeSpent: Math.floor(totalTimeSpent / 60), // Convert to hours
@@ -183,11 +162,11 @@ export const Dashboard = () => {
       inProgressTasks,
       overdueTasks,
     };
-  }, [adminFilteredTasks, userTasks, user?.role]);
+  }, [displayTasks, userTasks, user?.role, paginationData.total]);
   
   useEffect(() => {
     if (user) {  // Only fetch when user is available
-      getAllTasks();
+      getAllTasks(1, pageSize); // Reset to first page when component mounts
       if (user.role === 'admin') {
         fetchUsers();
       }
@@ -197,9 +176,33 @@ export const Dashboard = () => {
   // Fetch tasks whenever tab changes
   useEffect(() => {
     if (user) {
-      getAllTasks();
+      setCurrentPage(1); // Reset to first page when tab changes
+      getAllTasks(1, pageSize); // Reset to first page when tab changes
     }
   }, [activeTab, user])
+
+  // Refetch tasks when filters change
+  useEffect(() => {
+    if (user) {
+      const timeoutId = setTimeout(() => {
+        setCurrentPage(1); // Reset to first page when filters change
+        getAllTasks(1, pageSize); // Reset to first page when filters change
+      }, 300); // Debounce search
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [searchQuery, statusFilter, priorityFilter, selectedUserId, pageSize, user])
+
+  // Handle page changes
+  const handlePageChange = (page: number) => {
+    getAllTasks(page, pageSize);
+  }
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    getAllTasks(1, newPageSize); // Reset to first page with new page size
+  }
   
   const fetchUsers = async () => {
     try {
@@ -220,15 +223,46 @@ export const Dashboard = () => {
     }
   }
 
-  const getAllTasks = async () => {
+  const getAllTasks = async (page: number = currentPage, limit: number = pageSize) => {
     setLoading(true);
     try {
-      const response = await getAPI(TASK.FETCH);
+      // Build query parameters
+      const queryParams = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+
+      // Add status filter based on active tab
+      if (activeTab === 'completed') {
+        queryParams.append('status', 'completed');
+      } else if (activeTab === 'tasks') {
+        // For active tasks, exclude completed
+        if (statusFilter !== 'all') {
+          queryParams.append('status', statusFilter);
+        } else {
+          queryParams.append('excludeStatus', 'completed');
+        }
+      }
+
+      // Add other filters
+      if (priorityFilter !== 'all') {
+        queryParams.append('priority', priorityFilter);
+      }
+      if (searchQuery.trim()) {
+        queryParams.append('search', searchQuery.trim());
+      }
+      if (user?.role === 'admin' && selectedUserId !== 'all') {
+        queryParams.append('assignee', selectedUserId);
+      }
+
+      const response = await getAPI(`${TASK.FETCH}?${queryParams.toString()}`);
       setTasks(response.data);
+      setPaginationData(response.pagination);
+      setCurrentPage(page);
     } catch (error) {
       toast({
         title: "Error",
-        description:error?.message,
+        description: error?.message,
         variant: "destructive",
       });
     } finally {
@@ -684,7 +718,7 @@ export const Dashboard = () => {
           <TabsContent value="tasks" className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">
-                Active Tasks ({filteredActiveTasks.length})
+                Active Tasks ({paginationData.total})
               </h2>
             </div>
 
@@ -749,6 +783,19 @@ export const Dashboard = () => {
                   )}
                 </>
               )}
+
+              {/* Pagination Controls */}
+              {!loading && (
+                <TaskPagination
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  totalItems={paginationData.total}
+                  totalPages={paginationData.pages}
+                  onPageChange={handlePageChange}
+                  onPageSizeChange={handlePageSizeChange}
+                  itemName="tasks"
+                />
+              )}
             </>
           )}
           </TabsContent>
@@ -756,7 +803,7 @@ export const Dashboard = () => {
           <TabsContent value="completed" className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">
-                Completed Tasks ({filteredCompletedTasks.length})
+                Completed Tasks ({paginationData.total})
               </h2>
             </div>
 
@@ -786,6 +833,19 @@ export const Dashboard = () => {
                   />
                 ))}
               </div>
+            )}
+
+            {/* Pagination Controls for Completed Tasks */}
+            {!loading && activeTab === 'completed' && (
+              <TaskPagination
+                currentPage={currentPage}
+                pageSize={pageSize}
+                totalItems={paginationData.total}
+                totalPages={paginationData.pages}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
+                itemName="completed tasks"
+              />
             )}
           </TabsContent>
           
