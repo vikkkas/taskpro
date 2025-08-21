@@ -37,9 +37,6 @@ const getTasks = async (req, res) => {
     if (req.query.status) {
       query.status = req.query.status;
     }
-    if (req.query.excludeStatus) {
-      query.status = { $ne: req.query.excludeStatus };
-    }
     if (req.query.priority) {
       query.priority = req.query.priority;
     }
@@ -61,112 +58,27 @@ const getTasks = async (req, res) => {
     if (req.query.includeArchived !== 'true') {
       query.isArchived = { $ne: true };
     }
+    const priorityOrder = { high: 0, medium: 1, low: 2 };
 
-    // Build sort object
-    let sortObj = {};
-    
-    // First, sort by due date (tasks with due dates come first, then those without)
-    // For tasks with due dates, sort by due date ascending (nearest deadline first)
-    sortObj.dueDate = 1;
-    
-    // Then sort by priority (high = 0, medium = 1, low = 2 for ascending order)
-    // We'll use a pipeline to handle priority sorting properly
-    
-    const pipeline = [
-      { $match: query },
-      {
-        $addFields: {
-          priorityOrder: {
-            $switch: {
-              branches: [
-                { case: { $eq: ["$priority", "high"] }, then: 0 },
-                { case: { $eq: ["$priority", "medium"] }, then: 1 },
-                { case: { $eq: ["$priority", "low"] }, then: 2 }
-              ],
-              default: 3
-            }
-          },
-          // Handle null due dates by putting them at the end
-          sortableDueDate: {
-            $ifNull: ["$dueDate", new Date("2099-12-31")]
-          }
-        }
-      },
-      {
-        $sort: {
-          sortableDueDate: 1,  // Due date ascending (nearest first)
-          priorityOrder: 1     // Priority: high -> medium -> low
-        }
-      },
-      { $skip: skip },
-      { $limit: limit },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'assignee',
-          foreignField: '_id',
-          as: 'assignee',
-          pipeline: [{ $project: { name: 1, email: 1, department: 1, avatar: 1 } }]
-        }
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'createdBy',
-          foreignField: '_id',
-          as: 'createdBy',
-          pipeline: [{ $project: { name: 1, email: 1, department: 1, avatar: 1 } }]
-        }
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'comments.authorId',
-          foreignField: '_id',
-          as: 'commentAuthors',
-          pipeline: [{ $project: { name: 1, email: 1, avatar: 1 } }]
-        }
-      },
-      {
-        $addFields: {
-          assignee: { $arrayElemAt: ["$assignee", 0] },
-          createdBy: { $arrayElemAt: ["$createdBy", 0] },
-          comments: {
-            $map: {
-              input: "$comments",
-              as: "comment",
-              in: {
-                $mergeObjects: [
-                  "$$comment",
-                  {
-                    authorId: {
-                      $arrayElemAt: [
-                        {
-                          $filter: {
-                            input: "$commentAuthors",
-                            cond: { $eq: ["$$this._id", "$$comment.authorId"] }
-                          }
-                        },
-                        0
-                      ]
-                    }
-                  }
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        $project: {
-          priorityOrder: 0,
-          sortableDueDate: 0,
-          commentAuthors: 0
-        }
+    const tasks = await Task.find(query)
+      .populate('assignee', 'name email department avatar')
+      .populate('createdBy', 'name email department avatar')
+      .populate('comments.authorId', 'name email avatar')
+      .skip(skip)
+      .limit(limit);
+
+    tasks.sort((a, b) => {
+      if (a.dueDate && b.dueDate) {
+        const dateA = new Date(a.dueDate).getTime();
+        const dateB = new Date(b.dueDate).getTime();
+        if (dateA !== dateB) return dateA - dateB;
+        return priorityOrder[a.priority] - priorityOrder[b.priority];
       }
-    ];
+      if (a.dueDate && !b.dueDate) return -1;
+      if (!a.dueDate && b.dueDate) return 1;
+      return priorityOrder[a.priority] - priorityOrder[b.priority];
+    });
 
-    const tasks = await Task.aggregate(pipeline);
     const total = await Task.countDocuments(query);
 
     res.json({
