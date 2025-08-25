@@ -83,49 +83,31 @@ export const Dashboard = () => {
     return user._id || user.id || '';
   };
 
-  // Since tasks are now filtered on the backend, we use them directly for display
-  // but still need client-side filtering for role-based access
+  // Since tasks are now filtered on the backend, we use them directly
   const userTasks = useMemo(() => {
     if (!user) {
       return [];
     }
-    
-    if (user.role === 'admin') {
-      return tasks;
-    }
-    
-    const currentUserId = getCurrentUserId();
-    
-    const filtered = tasks.filter(task => {
-      // Handle both string and object assignees
-      let assigneeId = null;
-      
-      if (typeof task.assignee === 'string') {
-        assigneeId = task.assignee;
-      } else if (task.assignee && typeof task.assignee === 'object') {
-        assigneeId = task.assignee._id || task.assignee.id;
-      }
-      
-      return assigneeId === currentUserId;
-    });
-    
-    return filtered;
+    // Backend handles role-based filtering, so we can use tasks directly
+    return tasks;
   }, [tasks, user]);
 
-  // For display purposes, use the paginated tasks directly
+  // For display purposes, use the backend-filtered tasks directly
   const displayTasks = useMemo(() => {
-    return user?.role === 'admin' ? tasks : userTasks;
-  }, [tasks, userTasks, user?.role]);
+    return tasks; // Backend handles all filtering including role-based access
+  }, [tasks]);
 
   // Apply filters to active tasks (non-completed)
   const filteredActiveTasks = useMemo(() => {
-    return displayTasks.filter(task => task.status !== 'completed');
-  }, [displayTasks]);
+    // For active tasks tab, the backend already excludes completed tasks
+    return activeTab === 'tasks' ? displayTasks : displayTasks.filter(task => task.status !== 'completed');
+  }, [displayTasks, activeTab]);
 
   // Apply filters to completed tasks
   const filteredCompletedTasks = useMemo(() => {
-    return displayTasks.filter(task => task.status === 'completed');
-  }, [displayTasks]);
+    // For completed tasks tab, the backend already filters to only completed tasks
+    return activeTab === 'completed' ? displayTasks : displayTasks.filter(task => task.status === 'completed');
+  }, [displayTasks, activeTab]);
 
   // Keep original filteredTasks for backward compatibility
   const filteredTasks = useMemo(() => {
@@ -134,27 +116,35 @@ export const Dashboard = () => {
 
   // Calculate statistics
   const stats = useMemo(() => {
-    // Use displayTasks for calculations to reflect current filter
-    const tasksForStats = displayTasks;
+    // For accurate stats, we need to use the pagination total for total tasks
+    // and calculate other stats from all user tasks (not just current page)
     
-    const totalTasks = tasksForStats.length;
-    const completedTasks = tasksForStats.filter(t => t.status === 'completed').length;
-    const inProgressTasks = tasksForStats.filter(t => t.status === 'in-progress').length;
-    const activeTasks = tasksForStats.filter(t => t.isTimerRunning).length;
-    const overdueTasks = tasksForStats.filter(t => 
-      t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'completed'
-    ).length;
-    const totalTimeSpent = tasksForStats.reduce((total, task) => total + task.timeSpent, 0);
-
+    const totalTasks = paginationData.total;
+    
     if (user?.role === 'admin') {
-      const activeUsers = [...new Set(tasksForStats.map(t => t.assignee))].length;
+      // For admin, calculate from current page data but use backend total
+      const activeTasks = displayTasks.filter(t => t.isTimerRunning).length;
+      const totalTimeSpent = displayTasks.reduce((total, task) => total + task.timeSpent, 0);
+      const activeUsers = [...new Set(displayTasks
+        .filter(t => t.assignee)
+        .map(t => typeof t.assignee === 'string' ? t.assignee : t.assignee?._id || t.assignee?.id)
+      )].length;
+      
       return {
-        totalTasks: paginationData.total, // Use total from pagination for accurate count
+        totalTasks,
         activeUsers,
         activeTasks,
         totalTimeSpent: Math.floor(totalTimeSpent / 60), // Convert to hours
       };
     }
+
+    // For team members, we need to make a separate call to get all their tasks for stats
+    // For now, use the current page data with the total from pagination
+    const completedTasks = displayTasks.filter(t => t.status === 'completed').length;
+    const inProgressTasks = displayTasks.filter(t => t.status === 'in-progress').length;
+    const overdueTasks = displayTasks.filter(t => 
+      t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'completed'
+    ).length;
 
     return {
       totalTasks,
@@ -162,7 +152,7 @@ export const Dashboard = () => {
       inProgressTasks,
       overdueTasks,
     };
-  }, [displayTasks, userTasks, user?.role, paginationData.total]);
+  }, [displayTasks, user?.role, paginationData.total]);
   
   useEffect(() => {
     if (user) {  // Only fetch when user is available
@@ -285,25 +275,19 @@ export const Dashboard = () => {
       assignee: taskData.assignee || undefined,
     };
 
-    const newTask: Task = {
-      _id: Date.now().toString(),
-      ...taskData,
-      status: 'todo',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      timeSpent: 0,
-      isTimerRunning: false,
-      workSessions: [],
-      comments: []
-    };
-
     try{
       const response = await postAPI(TASK.CREATE, backendTaskData);
-      setTasks(prev => [newTask, ...prev]);
-      toast({
-        title: "Success",
-        description: "Task created successfully",
-      });
+      
+      if (response?.success) {
+        toast({
+          title: "Success",
+          description: "Task created successfully",
+        });
+        
+        // Refresh tasks list to show the new task
+        getAllTasks(1, pageSize); // Reset to first page to see new task
+        setCurrentPage(1);
+      }
     }
     catch(error) {
       toast({
@@ -336,13 +320,10 @@ export const Dashboard = () => {
           title: "Success",
           description: "Task updated successfully",
         });
+        
+        // Refresh current page to reflect changes
+        getAllTasks(currentPage, pageSize);
       }
-      
-      setTasks(prev => prev.map(task => 
-        task._id === taskId 
-          ? { ...task, ...updates, updatedAt: new Date().toISOString() }
-          : task
-      ));
     }
     catch(error) {
       toast({
@@ -400,9 +381,17 @@ export const Dashboard = () => {
           title: "Success",
           description: "Task deleted successfully",
         });
+        
+        // Refresh current page, but if this was the last item on the page, go to previous page
+        const remainingItems = paginationData.total - 1;
+        const maxPage = Math.ceil(remainingItems / pageSize);
+        const targetPage = currentPage > maxPage ? Math.max(1, maxPage) : currentPage;
+        
+        getAllTasks(targetPage, pageSize);
+        if (targetPage !== currentPage) {
+          setCurrentPage(targetPage);
+        }
       }
-      
-      setTasks(prev => prev.filter(task => task._id !== taskId));
     }
     catch(error) {
       toast({
@@ -434,11 +423,9 @@ export const Dashboard = () => {
           title: "Success",
           description: "Timer started successfully",
         });
-        setTasks(prev => prev.map(task =>
-          task._id === taskId
-            ? { ...task, ...response.data.data, status: 'in-progress' as TaskStatus, updatedAt: new Date().toISOString() }
-            : task
-        ));
+        
+        // Refresh current page to reflect timer changes
+        getAllTasks(currentPage, pageSize);
       }
     } catch (error) {
       toast({
@@ -469,11 +456,9 @@ export const Dashboard = () => {
           title: "Success",
           description: "Timer stopped successfully",
         });
-        setTasks(prev => prev.map(task =>
-          task._id === taskId
-            ? { ...task, ...response.data.data, updatedAt: new Date().toISOString() }
-            : task
-        ));
+        
+        // Refresh current page to reflect timer changes
+        getAllTasks(currentPage, pageSize);
       }
     } catch (error) {
       toast({

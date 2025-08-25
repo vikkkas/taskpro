@@ -37,18 +37,36 @@ const getTasks = async (req, res) => {
     if (req.query.status) {
       query.status = req.query.status;
     }
+    // Handle excludeStatus filter for active tasks tab
+    if (req.query.excludeStatus) {
+      query.status = { $ne: req.query.excludeStatus };
+    }
     if (req.query.priority) {
       query.priority = req.query.priority;
     }
     if (req.query.assignee) {
       query.assignee = req.query.assignee;
     }
+    
+    // Handle search query while preserving role-based filtering
     if (req.query.search) {
-      query.$or = [
+      const searchConditions = [
         { title: { $regex: req.query.search, $options: 'i' } },
         { description: { $regex: req.query.search, $options: 'i' } }
       ];
+      
+      // If we already have a role-based $or condition, combine it with search
+      if (query.$or) {
+        query.$and = [
+          { $or: query.$or }, // Role-based conditions
+          { $or: searchConditions } // Search conditions
+        ];
+        delete query.$or;
+      } else {
+        query.$or = searchConditions;
+      }
     }
+    
     if (req.query.tags) {
       const tags = Array.isArray(req.query.tags) ? req.query.tags : [req.query.tags];
       query.tags = { $in: tags };
@@ -58,24 +76,37 @@ const getTasks = async (req, res) => {
     if (req.query.includeArchived !== 'true') {
       query.isArchived = { $ne: true };
     }
-    const priorityOrder = { high: 0, medium: 1, low: 2 };
+    // Define sorting criteria for database query
+    const priorityOrder = { high: 1, medium: 2, low: 3 };
+    let sort = {};
+    
+    // Primary sort by due date (ascending), then priority (high to low)
+    sort = { 
+      dueDate: 1,  // Ascending - earliest dates first
+      priority: 1  // Will be converted using priorityOrder mapping
+    };
 
     const tasks = await Task.find(query)
       .populate('assignee', 'name email department avatar')
       .populate('createdBy', 'name email department avatar')
       .populate('comments.authorId', 'name email avatar')
+      .sort(sort)
       .skip(skip)
       .limit(limit);
 
+    // Apply custom sorting for priority while preserving pagination
     tasks.sort((a, b) => {
+      // First sort by due date
       if (a.dueDate && b.dueDate) {
         const dateA = new Date(a.dueDate).getTime();
         const dateB = new Date(b.dueDate).getTime();
         if (dateA !== dateB) return dateA - dateB;
-        return priorityOrder[a.priority] - priorityOrder[b.priority];
       }
+      // Put tasks with due dates before those without
       if (a.dueDate && !b.dueDate) return -1;
       if (!a.dueDate && b.dueDate) return 1;
+      
+      // Then sort by priority (high to low)
       return priorityOrder[a.priority] - priorityOrder[b.priority];
     });
 
