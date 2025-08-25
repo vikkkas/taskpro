@@ -10,7 +10,8 @@ const {
   startTimer,
   stopTimer,
   addComment,
-  deleteComment
+  deleteComment,
+  getTaskStats
 } = require('../controllers/taskController');
 const authMiddleware = require('../middleware/authMiddleware');
 const { allUsers } = require('../middleware/roleMiddleware');
@@ -103,6 +104,9 @@ const commentValidation = [
 // Apply authentication and role middleware to all routes
 router.use(authMiddleware);
 router.use(allUsers);
+
+// Stats route (must be before /:id routes)
+router.get('/stats', getTaskStats);
 
 // Task routes
 router.route('/')

@@ -58,6 +58,7 @@ export const Dashboard = () => {
   const [showSessionsModal, setShowSessionsModal] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('tasks');
   const [taskLoadingStates, setTaskLoadingStates] = useState<Record<string, {
     timer?: boolean;
@@ -65,6 +66,7 @@ export const Dashboard = () => {
     delete?: boolean;
     update?: boolean;
   }>>({});
+  const [globalStats, setGlobalStats] = useState<any>(null);
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -114,49 +116,21 @@ export const Dashboard = () => {
     return displayTasks;
   }, [displayTasks]);
 
-  // Calculate statistics
+  // Calculate statistics from global stats API
   const stats = useMemo(() => {
-    // For accurate stats, we need to use the pagination total for total tasks
-    // and calculate other stats from all user tasks (not just current page)
-    
-    const totalTasks = paginationData.total;
-    
-    if (user?.role === 'admin') {
-      // For admin, calculate from current page data but use backend total
-      const activeTasks = displayTasks.filter(t => t.isTimerRunning).length;
-      const totalTimeSpent = displayTasks.reduce((total, task) => total + task.timeSpent, 0);
-      const activeUsers = [...new Set(displayTasks
-        .filter(t => t.assignee)
-        .map(t => typeof t.assignee === 'string' ? t.assignee : t.assignee?._id || t.assignee?.id)
-      )].length;
-      
-      return {
-        totalTasks,
-        activeUsers,
-        activeTasks,
-        totalTimeSpent: Math.floor(totalTimeSpent / 60), // Convert to hours
-      };
+    if (!globalStats) {
+      return user?.role === 'admin' 
+        ? { totalTasks: 0, activeUsers: 0, activeTasks: 0, totalTimeSpent: 0 }
+        : { totalTasks: 0, completedTasks: 0, inProgressTasks: 0, overdueTasks: 0 };
     }
-
-    // For team members, we need to make a separate call to get all their tasks for stats
-    // For now, use the current page data with the total from pagination
-    const completedTasks = displayTasks.filter(t => t.status === 'completed').length;
-    const inProgressTasks = displayTasks.filter(t => t.status === 'in-progress').length;
-    const overdueTasks = displayTasks.filter(t => 
-      t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'completed'
-    ).length;
-
-    return {
-      totalTasks,
-      completedTasks,
-      inProgressTasks,
-      overdueTasks,
-    };
-  }, [displayTasks, user?.role, paginationData.total]);
+    
+    return globalStats;
+  }, [globalStats, user?.role]);
   
   useEffect(() => {
     if (user) {  // Only fetch when user is available
       getAllTasks(1, pageSize); // Reset to first page when component mounts
+      fetchGlobalStats(); // Fetch global stats
       if (user.role === 'admin') {
         fetchUsers();
       }
@@ -168,6 +142,7 @@ export const Dashboard = () => {
     if (user) {
       setCurrentPage(1); // Reset to first page when tab changes
       getAllTasks(1, pageSize); // Reset to first page when tab changes
+      fetchGlobalStats(); // Refresh global stats when tab changes
     }
   }, [activeTab, user])
 
@@ -177,6 +152,7 @@ export const Dashboard = () => {
       const timeoutId = setTimeout(() => {
         setCurrentPage(1); // Reset to first page when filters change
         getAllTasks(1, pageSize); // Reset to first page when filters change
+        fetchGlobalStats(); // Refresh global stats when filters change
       }, 300); // Debounce search
 
       return () => clearTimeout(timeoutId);
@@ -210,6 +186,35 @@ export const Dashboard = () => {
         description: "Failed to load users. Some features may be limited.",
         variant: "destructive",
       });
+    }
+  }
+
+  const fetchGlobalStats = async () => {
+    setStatsLoading(true);
+    try {
+      // Build query parameters for stats
+      const queryParams = new URLSearchParams();
+      
+      // Add user filter for admin
+      if (user?.role === 'admin' && selectedUserId !== 'all') {
+        queryParams.append('assignee', selectedUserId);
+      }
+
+      const url = queryParams.toString() 
+        ? `${TASK.STATS}?${queryParams.toString()}`
+        : TASK.STATS;
+        
+      const response = await getAPI(url);
+      setGlobalStats(response.data);
+    } catch (error) {
+      console.error('Failed to fetch global stats:', error);
+      toast({
+        title: "Warning",
+        description: "Failed to load statistics.",
+        variant: "destructive",
+      });
+    } finally {
+      setStatsLoading(false);
     }
   }
 
@@ -278,7 +283,7 @@ export const Dashboard = () => {
     try{
       const response = await postAPI(TASK.CREATE, backendTaskData);
       
-      if (response?.success) {
+      if (response?.data?.success) {
         toast({
           title: "Success",
           description: "Task created successfully",
@@ -287,6 +292,7 @@ export const Dashboard = () => {
         // Refresh tasks list to show the new task
         getAllTasks(1, pageSize); // Reset to first page to see new task
         setCurrentPage(1);
+        fetchGlobalStats(); // Refresh global stats
       }
     }
     catch(error) {
@@ -315,7 +321,7 @@ export const Dashboard = () => {
       
       // Update task in the backend
       const response = await putAPI(TASK.UPDATE(taskId), { ...task, ...updates });
-      if(response?.success) {
+      if(response?.data?.success) {
         toast({
           title: "Success",
           description: "Task updated successfully",
@@ -323,6 +329,7 @@ export const Dashboard = () => {
         
         // Refresh current page to reflect changes
         getAllTasks(currentPage, pageSize);
+        fetchGlobalStats(); // Refresh global stats
       }
     }
     catch(error) {
@@ -376,7 +383,7 @@ export const Dashboard = () => {
       const response = await deleteAPI(TASK.DELETE(taskId));
 
       // @ts-ignore 
-      if(response?.success) {
+      if(response?.data?.success) {
         toast({
           title: "Success",
           description: "Task deleted successfully",
@@ -391,6 +398,7 @@ export const Dashboard = () => {
         if (targetPage !== currentPage) {
           setCurrentPage(targetPage);
         }
+        fetchGlobalStats(); // Refresh global stats
       }
     }
     catch(error) {
@@ -426,6 +434,7 @@ export const Dashboard = () => {
         
         // Refresh current page to reflect timer changes
         getAllTasks(currentPage, pageSize);
+        fetchGlobalStats(); // Refresh global stats
       }
     } catch (error) {
       toast({
@@ -459,6 +468,7 @@ export const Dashboard = () => {
         
         // Refresh current page to reflect timer changes
         getAllTasks(currentPage, pageSize);
+        fetchGlobalStats(); // Refresh global stats
       }
     } catch (error) {
       toast({
@@ -542,10 +552,10 @@ export const Dashboard = () => {
           {user?.role === 'admin' ? (
             <>
               <StatsCard
-                title="Total Tasks"
+                title="Active Tasks"
                 value={stats.totalTasks}
                 icon={Target}
-                description="Across all team members"
+                description="Active tasks across all team members"
               />
               <StatsCard
                 title="Active Users"
@@ -569,10 +579,10 @@ export const Dashboard = () => {
           ) : (
             <>
               <StatsCard
-                title="Total Tasks"
+                title="Active Tasks"
                 value={stats.totalTasks}
                 icon={Target}
-                description="Your assigned tasks"
+                description="Your active assigned tasks"
               />
               <StatsCard
                 title="Completed"

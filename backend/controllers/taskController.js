@@ -630,6 +630,95 @@ const deleteComment = async (req, res) => {
   }
 };
 
+// @desc    Get task statistics
+// @route   GET /api/tasks/stats
+// @access  Private
+const getTaskStats = async (req, res) => {
+  try {
+    // Build query based on user role
+    let query = {};
+    
+    if (req.user.role === 'team-member') {
+      // Team members can see stats for tasks created by them or assigned to them
+      query = {
+        $or: [
+          { createdBy: req.user._id },
+          { assignee: req.user._id }
+        ]
+      };
+    } else if (req.user.role === 'admin') {
+      // Admins can see stats for all tasks
+      query = {};
+    }
+
+    // Don't include archived tasks in stats
+    query.isArchived = { $ne: true };
+
+    // Apply any filters that might be passed
+    if (req.query.assignee && req.user.role === 'admin') {
+      query.assignee = req.query.assignee;
+    }
+
+    // Get all tasks for stats calculation
+    const allTasksIncludingCompleted = await Task.find(query)
+      .populate('assignee', '_id name email')
+      .lean(); // Use lean() for better performance since we only need data
+
+    // Calculate statistics
+    const activeTasks = allTasksIncludingCompleted.filter(t => t.status !== 'completed'); // Only active tasks for total count
+    const totalTasks = activeTasks.length;
+    const completedTasks = allTasksIncludingCompleted.filter(t => t.status === 'completed').length;
+    const inProgressTasks = activeTasks.filter(t => t.status === 'in-progress').length;
+    const todoTasks = activeTasks.filter(t => t.status === 'todo').length;
+    const tasksWithActiveTimers = activeTasks.filter(t => t.isTimerRunning).length;
+    const overdueTasks = activeTasks.filter(t => 
+      t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'completed'
+    ).length;
+    const totalTimeSpent = allTasksIncludingCompleted.reduce((total, task) => total + (task.timeSpent || 0), 0);
+
+    let stats = {};
+
+    if (req.user.role === 'admin') {
+      // Get unique assignees count
+      const activeUsers = [...new Set(activeTasks
+        .filter(t => t.assignee)
+        .map(t => t.assignee._id?.toString() || t.assignee.toString())
+      )].length;
+
+      stats = {
+        totalTasks,
+        activeUsers,
+        activeTasks: tasksWithActiveTimers,
+        totalTimeSpent: Math.floor(totalTimeSpent / 60), // Convert to hours
+        completedTasks,
+        inProgressTasks,
+        todoTasks,
+        overdueTasks
+      };
+    } else {
+      stats = {
+        totalTasks,
+        completedTasks,
+        inProgressTasks,
+        overdueTasks,
+        totalTimeSpent: Math.floor(totalTimeSpent / 60), // Convert to hours
+        activeTasks: tasksWithActiveTimers
+      };
+    }
+
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error('Get task stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+
 module.exports = {
   getTasks,
   getTask,
@@ -639,5 +728,6 @@ module.exports = {
   startTimer,
   stopTimer,
   addComment,
-  deleteComment
+  deleteComment,
+  getTaskStats
 };

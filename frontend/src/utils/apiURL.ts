@@ -6,6 +6,7 @@ export const AUTH = {
 
 export const TASK = {
     FETCH: "/api/tasks",
+    STATS: "/api/tasks/stats",
     CREATE : "/api/tasks",
     UPDATE : (taskId: string) => `/api/tasks/${taskId}`,
     DELETE: (taskId: string) => `/api/tasks/${taskId}`,
