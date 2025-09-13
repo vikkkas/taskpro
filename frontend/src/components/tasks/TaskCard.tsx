@@ -139,7 +139,26 @@ export const TaskCard = ({
     }
   };
 
+  // Check if current user can control timer
+  const canControlTimer = () => {
+    if (user?.role === 'admin') return true;
+    
+    // Team members can only control timer for tasks assigned to them
+    const isAssignedUser = assignedUsers.some(assignee => {
+      const assigneeId = typeof assignee === 'string' ? assignee : (assignee._id || assignee.id);
+      const userId = user?._id || user?.id;
+      return assigneeId === userId;
+    });
+    
+    return isAssignedUser;
+  };
+
   const handleStatusChange = (newStatus: TaskStatus) => {
+    // Team members can only update status for tasks assigned to them
+    if (user?.role === 'team-member' && !canControlTimer()) {
+      return; // Silently ignore if not authorized
+    }
+    
     onUpdateTask(task._id, {
       status: newStatus,
       isTimerRunning: newStatus === "completed" ? false : task.isTimerRunning,
@@ -170,6 +189,28 @@ export const TaskCard = ({
     }
 
     return null;
+  })();
+
+  // Get multiple assignees
+  const assignedUsers = (() => {
+    if (task.assignees && task.assignees.length > 0) {
+      return task.assignees.map(assignee => {
+        // If it's already a populated object
+        if (typeof assignee === "object" && assignee !== null) {
+          return assignee;
+        }
+        // If it's a string ID, find the user
+        if (typeof assignee === "string") {
+          return users?.find((u) => {
+            const userId = u._id || u.id;
+            return userId === assignee;
+          }) || null;
+        }
+        return null;
+      }).filter(Boolean) as Array<{ _id: string; id?: string; name: string; email: string; department: string; avatar?: string; }>;
+    }
+    // Fallback to single assignee for backward compatibility
+    return assignedUser ? [assignedUser] : [];
   })();
 
   const today = new Date();
@@ -204,52 +245,43 @@ export const TaskCard = ({
   return (
     <Card
       className={cn(
-        "transition-all duration-300 hover:shadow-elegant",
-        task.isTimerRunning &&
-          "ring-2 ring-primary shadow-glow animate-pulse-glow"
+        "group relative overflow-hidden transition-all duration-300 hover:shadow-elegant",
+        task.isTimerRunning && "ring-2 ring-primary shadow-glow animate-pulse-glow"
       )}
     >
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1">
-                <h3 className="text-sm font-semibold leading-tight">
-                  {task.title}
-                </h3>
-                {(isOverdue || isDueToday) && (
-                  <span className="flex items-center">
-                    <AlertCircle className={`w-4 h-4 ${isOverdue ? 'text-destructive' : 'text-warning'}`} />
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div 
-                className="text-sm whitespace-pre-wrap break-words overflow-wrap-anywhere max-w-full rich-text-content"
-                dangerouslySetInnerHTML={{ __html: getTrimmedDescription(task.description) }} 
-                style={{ 
-                  wordBreak: 'break-word',
-                  overflowWrap: 'anywhere'
-                }}
-              />
-            
-              <style dangerouslySetInnerHTML={{
-                __html: `
-                  .rich-text-content b,
-                  .rich-text-content strong {
-                    font-weight: bold !important;
-                  }
-                  .rich-text-content i,
-                  .rich-text-content em {
-                    font-style: italic !important;
-                  }
-                  .rich-text-content u {
-                    text-decoration: underline !important;
-                  }
-                `
-              }} />
+      {/* Timer Running Indicator */}
+      {task.isTimerRunning && (
+        <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 bg-primary text-primary-foreground rounded-full text-xs font-medium animate-pulse">
+          <div className="w-2 h-2 bg-current rounded-full animate-ping"></div>
+          LIVE
+        </div>
+      )}
 
+      <CardHeader className="pb-4 space-y-3">
+        {/* Header Row */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start gap-2 mb-2">
+              <h3 className="font-semibold text-sm leading-tight line-clamp-2">
+                {task.title}
+              </h3>
+              {(isOverdue || isDueToday) && (
+                <AlertCircle 
+                  className={cn(
+                    "w-4 h-4 flex-shrink-0 mt-0.5",
+                    isOverdue ? 'text-destructive' : 'text-warning'
+                  )} 
+                />
+              )}
+            </div>
+            
+            {/* Description */}
+            {task.description && (
+              <div className="space-y-1">
+                <div 
+                  className="text-sm text-muted-foreground leading-relaxed rich-text-content"
+                  dangerouslySetInnerHTML={{ __html: getTrimmedDescription(task.description, 100) }}
+                />
                 <TaskDetailsModal
                   task={task}
                   assignedUser={assignedUser}
@@ -262,110 +294,132 @@ export const TaskCard = ({
                     View Details
                   </button>
                 </TaskDetailsModal>
-            </div>
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-2 ml-2">
+          {/* Admin Actions */}
+          {user?.role === "admin" && (
             <div className="flex items-center gap-1">
-              <Badge
-                variant="secondary"
-                className={cn("text-xs", priorityConfig[task.priority].color)}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowEditModal(true)}
+                className="w-8 h-8 p-0"
+                disabled={isAnyLoading}
               >
-                {task.priority}
-              </Badge>
-              <Badge
-                variant="secondary"
-                className="text-xs text-blue-500 bg-blue-100"
-              >
-                {typeof task.assignee === "object" && task.assignee !== null && "name" in task.assignee
-                  ? task.assignee.name
-                  : "Unassigned"}
-              </Badge>
-            </div>
-            {user?.role === "admin" ? (
-              <div className="flex items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setShowEditModal(true)}
-                  className="w-8 h-8 p-0"
-                  disabled={isAnyLoading}
-                >
-                  {isLoading.update ? (
-                    <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
-                  ) : (
-                    <Edit className="w-3 h-3" />
-                  )}
-                </Button>
+                {isLoading.update ? (
+                  <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                ) : (
+                  <Edit className="w-3 h-3" />
+                )}
+              </Button>
 
-                {onDeleteTask && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="w-8 h-8 p-0 text-destructive hover:text-destructive"
-                        disabled={isAnyLoading}
+              {onDeleteTask && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="w-8 h-8 p-0 text-destructive hover:text-destructive"
+                      disabled={isAnyLoading}
+                    >
+                      {isLoading.delete ? (
+                        <Loader2 className="w-3 h-3 animate-spin text-destructive" />
+                      ) : (
+                        <Trash2 className="w-3 h-3" />
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Task</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete "{task.title}"? This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleDeleteTask}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        disabled={isLoading.delete}
                       >
                         {isLoading.delete ? (
-                          <Loader2 className="w-3 h-3 animate-spin text-destructive" />
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Deleting...
+                          </>
                         ) : (
-                          <Trash2 className="w-3 h-3" />
+                          'Delete'
                         )}
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Task</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Are you sure you want to delete "{task.title}"? This
-                          action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={handleDeleteTask}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          disabled={isLoading.delete}
-                        >
-                          {isLoading.delete ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Deleting...
-                            </>
-                          ) : (
-                            'Delete'
-                          )}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
-              </div>
-            ) : null}
-          </div>
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Badges Row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge className={statusConfig[task.status].color}>
+            {statusConfig[task.status].label}
+          </Badge>
+          
+          <Badge
+            variant="secondary"
+            className={cn("text-xs", priorityConfig[task.priority].color)}
+          >
+            {task.priority}
+          </Badge>
+
+          {assignedUsers.length > 0 && (
+            <Badge variant="secondary" className="text-xs">
+              {assignedUsers.length === 1 
+                ? assignedUsers[0].name
+                : `${assignedUsers.length} members`}
+            </Badge>
+          )}
         </div>
       </CardHeader>
 
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between">
-          <Badge className={statusConfig[task.status].color}>
-            {statusConfig[task.status].label}
-          </Badge>
-
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock className="w-3 h-3" />
             <span>{formatTime(calculateTimeSpent())}</span>
           </div>
+          
+          {/* Show who is running the timer */}
+          {task.isTimerRunning && task.timerStartedBy && typeof task.timerStartedBy === 'object' && (
+            <div className="flex items-center gap-1 text-xs text-primary">
+              <UserIcon className="w-3 h-3" />
+              <span>{task.timerStartedBy.name} is working</span>
+            </div>
+          )}
         </div>
 
-        {showAssignee && assignedUser && (
+        {showAssignee && assignedUsers.length > 0 && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <UserIcon className="w-3 h-3" />
-            <span>{assignedUser.name}</span>
-            <span>•</span>
-            <span>{assignedUser.department}</span>
+            <div className="flex items-center gap-1">
+              {assignedUsers.slice(0, 2).map((user, index) => (
+                <span key={user._id || user.id} className="flex items-center gap-1">
+                  {index > 0 && <span>•</span>}
+                  <span>{user.name}</span>
+                  {user.department && (
+                    <span className="text-muted-foreground">({user.department})</span>
+                  )}
+                </span>
+              ))}
+              {assignedUsers.length > 2 && (
+                <span className="text-muted-foreground">
+                  • +{assignedUsers.length - 2} more
+                </span>
+              )}
+            </div>
           </div>
         )}
 
@@ -392,7 +446,7 @@ export const TaskCard = ({
             variant={task.isTimerRunning ? "destructive" : "default"}
             onClick={handleTimerToggle}
             className="flex items-center gap-1"
-            disabled={task.status === "completed" || isLoading.timer}
+            disabled={task.status === "completed" || isLoading.timer || !canControlTimer()}
           >
             {isLoading.timer ? (
               <>
@@ -446,7 +500,7 @@ export const TaskCard = ({
                 variant={task.status === status ? "default" : "outline"}
                 onClick={() => handleStatusChange(status)}
                 className="text-xs"
-                disabled={isLoading.status || isAnyLoading}
+                disabled={isLoading.status || isAnyLoading || (user?.role === 'team-member' && !canControlTimer())}
               >
                 {isLoading.status ? (
                   <>
@@ -471,6 +525,28 @@ export const TaskCard = ({
           </div>
         )}
       </CardContent>
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .rich-text-content b,
+          .rich-text-content strong {
+            font-weight: bold !important;
+          }
+          .rich-text-content i,
+          .rich-text-content em {
+            font-style: italic !important;
+          }
+          .rich-text-content u {
+            text-decoration: underline !important;
+          }
+          .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+          }
+        `
+      }} />
 
       <EditTaskModal
         task={task}

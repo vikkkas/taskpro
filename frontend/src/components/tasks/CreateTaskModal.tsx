@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { TaskPriority } from '@/types/task';
 import { User } from '@/types/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,7 +20,8 @@ interface CreateTaskModalProps {
     title: string;
     description: string;
     priority: TaskPriority;
-    assignee: string;
+    assignee?: string;
+    assignees: string[];
     dueDate?: string;
     tags: string[];
   }) => void;
@@ -31,6 +33,7 @@ export const CreateTaskModal = ({ open, onOpenChange, users, onCreateTask, isLoa
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [assignee, setAssignee] = useState('unassigned');
+  const [assignees, setAssignees] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
@@ -75,13 +78,16 @@ export const CreateTaskModal = ({ open, onOpenChange, users, onCreateTask, isLoa
       return;
     }
 
-    const taskAssignee = user?.role === 'admin' && assignee && assignee !== 'unassigned' ? assignee : getUserId(user!);
+    // For backward compatibility, if single assignee is selected and no multiple assignees
+    const finalAssignees = assignees.length > 0 ? assignees : 
+      (assignee !== 'unassigned' ? [assignee] : []);
 
     onCreateTask({
       title: title.trim(),
       description: description.trim(),
       priority,
-      assignee: assignee === 'unassigned' ? '' : taskAssignee,
+      assignee: assignee === 'unassigned' ? undefined : assignee, // For backward compatibility
+      assignees: finalAssignees,
       dueDate: dueDate || undefined,
       tags,
     });
@@ -91,6 +97,7 @@ export const CreateTaskModal = ({ open, onOpenChange, users, onCreateTask, isLoa
     setDescription('');
     setPriority('medium');
     setAssignee('unassigned');
+    setAssignees([]);
     setDueDate('');
     setTags([]);
     setTagInput('');
@@ -153,33 +160,18 @@ export const CreateTaskModal = ({ open, onOpenChange, users, onCreateTask, isLoa
 
             {user?.role === 'admin' ? (
               <div className="flex-[50] space-y-2">
-                <Label htmlFor="assignee">Assign To</Label>
-                <Select value={assignee} onValueChange={setAssignee}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select team member" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {users.map((member) => {
-                      const userId = getUserId(member);
-                      return (
-                        <SelectItem key={userId} value={userId}>
-                          <div className="flex items-center gap-2">
-                            <img
-                              src={member.avatar}
-                              alt={member.name}
-                              className="w-5 h-5 rounded-full"
-                            />
-                            <span>{member.name}</span>
-                            {member.department && (
-                              <span className="text-muted-foreground">({member.department})</span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+                <Label>Assign To (Multiple)</Label>
+                <MultiSelect
+                  options={users.map(u => ({
+                    value: getUserId(u),
+                    label: u.name,
+                    avatar: u.avatar,
+                    department: u.department
+                  }))}
+                  value={assignees}
+                  onChange={setAssignees}
+                  placeholder="Select team members..."
+                />
               </div>
             ) : (
               <div className="flex-[40]"></div>

@@ -8,6 +8,7 @@ import { SessionsList } from '@/components/tasks/SessionsList';
 import { SessionsModal } from '@/components/tasks/SessionsModal';
 import { TaskAnalytics } from '@/components/analytics/TaskAnalytics';
 import { UserManagement } from '@/components/admin/UserManagement';
+import { ActiveTimers } from '@/components/admin/ActiveTimers';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -240,23 +241,31 @@ export const Dashboard = () => {
     title: string;
     description: string;
     priority: TaskPriority;
-    assignee: string;
+    assignee?: string;
+    assignees: string[];
     dueDate?: string;
     tags: string[];
   }) => {
     setLoading(true);
-    // Prepare the task data for backend (convert empty assignee to null/undefined)
+    // Prepare the task data for backend
     const backendTaskData = {
       ...taskData,
       assignee: taskData.assignee || undefined,
+      assignees: taskData.assignees || [],
     };
 
     const newTask: Task = {
       _id: Date.now().toString(),
-      ...taskData,
+      title: taskData.title,
+      description: taskData.description,
+      priority: taskData.priority,
+      assignee: taskData.assignee,
+      assignees: [], // Will be populated when the response comes back
       status: 'todo',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      dueDate: taskData.dueDate,
+      tags: taskData.tags,
       timeSpent: 0,
       isTimerRunning: false,
       workSessions: [],
@@ -673,11 +682,12 @@ export const Dashboard = () => {
 
         {/* Main Content */}
         <Tabs defaultValue="tasks" value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className={`grid w-full ${user?.role === 'admin' ? 'grid-cols-5' : 'grid-cols-4'}`}>
+          <TabsList className={`grid w-full ${user?.role === 'admin' ? 'grid-cols-6' : 'grid-cols-4'}`}>
             <TabsTrigger value="tasks">Active Tasks</TabsTrigger>
             <TabsTrigger value="completed">Completed</TabsTrigger>
             <TabsTrigger value="sessions">Work Sessions</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            {user?.role === 'admin' && <TabsTrigger value="timers">Active Timers</TabsTrigger>}
             {user?.role === 'admin' && <TabsTrigger value="users">Team Management</TabsTrigger>}
           </TabsList>
           
@@ -806,6 +816,12 @@ export const Dashboard = () => {
               onUserFilterChange={user?.role === 'admin' ? setSelectedUserId : undefined}
             />
           </TabsContent>
+
+          {user?.role === 'admin' && (
+            <TabsContent value="timers" className="space-y-4">
+              <ActiveTimers onRefresh={getAllTasks} />
+            </TabsContent>
+          )}
 
           {user?.role === 'admin' && (
             <TabsContent value="users" className="space-y-4">

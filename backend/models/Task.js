@@ -12,6 +12,10 @@ const workSessionSchema = mongoose.Schema({
   duration: {
     type: Number, // Duration in minutes
     default: 0
+  },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User' // Track which user worked on this session
   }
 }, {
   timestamps: true
@@ -61,6 +65,11 @@ const taskSchema = mongoose.Schema({
     enum: ['low', 'medium', 'high'],
     default: 'medium'
   },
+  assignees: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  // Keep the old assignee field for backward compatibility (deprecated)
   assignee: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
@@ -84,6 +93,10 @@ const taskSchema = mongoose.Schema({
   timerStartedAt: {
     type: Date
   },
+  timerStartedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User' // Track which user started the timer
+  },
   tags: [{
     type: String,
     trim: true
@@ -100,7 +113,8 @@ const taskSchema = mongoose.Schema({
 
 // Index for better query performance
 taskSchema.index({ createdBy: 1, status: 1 });
-taskSchema.index({ assignee: 1, status: 1 });
+taskSchema.index({ assignees: 1, status: 1 });
+taskSchema.index({ assignee: 1, status: 1 }); // Keep for backward compatibility
 taskSchema.index({ tags: 1 });
 taskSchema.index({ dueDate: 1 });
 

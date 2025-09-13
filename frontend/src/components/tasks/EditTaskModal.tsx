@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { Task, TaskPriority, TaskStatus } from '@/types/task';
 import { User } from '@/types/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -33,12 +34,28 @@ export const EditTaskModal = ({ task, users, isOpen, onClose, onUpdateTask, isLo
     return 'unassigned';
   };
 
+  // Handle assignees - get array of IDs
+  const getAssigneeIds = (assignees: any): string[] => {
+    if (assignees && Array.isArray(assignees)) {
+      return assignees.map(assignee => {
+        if (typeof assignee === 'string') {
+          return assignee;
+        } else if (assignee && typeof assignee === 'object') {
+          return assignee._id || assignee.id;
+        }
+        return '';
+      }).filter(Boolean);
+    }
+    return [];
+  };
+
   const [formData, setFormData] = useState({
     title: task.title,
     description: task.description,
     priority: task.priority,
     status: task.status,
     assignee: getAssigneeId(task.assignee),
+    assignees: getAssigneeIds(task.assignees),
     dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
     tags: task.tags.join(', ')
   });
@@ -64,6 +81,7 @@ export const EditTaskModal = ({ task, users, isOpen, onClose, onUpdateTask, isLo
       priority: formData.priority,
       status: formData.status,
       assignee: formData.assignee === 'unassigned' ? undefined : formData.assignee,
+      assignees: formData.assignees,
       dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
       tags: formData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
       updatedAt: new Date().toISOString(),
@@ -77,7 +95,7 @@ export const EditTaskModal = ({ task, users, isOpen, onClose, onUpdateTask, isLo
     });
   };
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: string, value: string | string[]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -143,30 +161,18 @@ export const EditTaskModal = ({ task, users, isOpen, onClose, onUpdateTask, isLo
 
           {user?.role === 'admin' && (
             <div className="space-y-2">
-              <Label htmlFor="assignee">Assignee</Label>
-              <Select value={formData.assignee} onValueChange={(value) => handleInputChange('assignee', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select assignee" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unassigned">Unassigned</SelectItem>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={user.avatar}
-                          alt={user.name}
-                          className="w-5 h-5 rounded-full"
-                        />
-                        <span>{user.name}</span>
-                        {user.department && (
-                          <span className="text-muted-foreground">({user.department})</span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Assign To (Multiple)</Label>
+              <MultiSelect
+                options={users.map(u => ({
+                  value: u._id || u.id || '',
+                  label: u.name,
+                  avatar: u.avatar,
+                  department: u.department
+                }))}
+                value={formData.assignees}
+                onChange={(value) => handleInputChange('assignees', value)}
+                placeholder="Select team members..."
+              />
             </div>
           )}
 

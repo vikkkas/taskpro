@@ -6,14 +6,16 @@ const {
   createTask,
   updateTask,
   deleteTask,
-  archiveTask,
   startTimer,
   stopTimer,
   addComment,
-  deleteComment
+  deleteComment,
+  getActiveTimers,
+  getTaskAnalytics,
+  migrateData
 } = require('../controllers/taskController');
 const authMiddleware = require('../middleware/authMiddleware');
-const { allUsers } = require('../middleware/roleMiddleware');
+const { allUsers, adminOnly } = require('../middleware/roleMiddleware');
 
 const router = express.Router();
 
@@ -44,6 +46,14 @@ const createTaskValidation = [
     .optional()
     .isMongoId()
     .withMessage('Assignee user ID must be valid'),
+  body('assignees')
+    .optional()
+    .isArray()
+    .withMessage('Assignees must be an array'),
+  body('assignees.*')
+    .optional()
+    .isMongoId()
+    .withMessage('Each assignee ID must be valid'),
   body('tags')
     .optional()
     .isArray()
@@ -82,6 +92,14 @@ const updateTaskValidation = [
     .optional()
     .isMongoId()
     .withMessage('Assignee user ID must be valid'),
+  body('assignees')
+    .optional()
+    .isArray()
+    .withMessage('Assignees must be an array'),
+  body('assignees.*')
+    .optional()
+    .isMongoId()
+    .withMessage('Each assignee ID must be valid'),
   body('tags')
     .optional()
     .isArray()
@@ -121,5 +139,10 @@ router.post('/:id/timer/stop', stopTimer);
 // Comment routes
 router.post('/:id/comments', commentValidation, addComment);
 router.delete('/:id/comments/:commentId', deleteComment);
+
+// Admin only routes
+router.get('/active-timers', adminOnly, getActiveTimers);
+router.get('/analytics', adminOnly, getTaskAnalytics);
+router.post('/migrate', adminOnly, migrateData);
 
 module.exports = router;
