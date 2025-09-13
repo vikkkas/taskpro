@@ -122,6 +122,9 @@ const commentValidation = [
 router.use(authMiddleware);
 router.use(allUsers);
 
+// Stats route (must be before /:id routes)
+router.get('/stats', getTaskStats);
+
 // Task routes
 router.route('/')
   .get(getTasks)

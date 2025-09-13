@@ -29,6 +29,17 @@ const getTasks = async (req, res) => {
         { assignee: req.user._id }, // Backward compatibility
         { assignees: req.user._id } // New multiple assignees
       ];
+      
+      // If we already have a role-based $or condition, combine it with search
+      if (query.$or) {
+        query.$and = [
+          { $or: query.$or }, // Role-based conditions
+          { $or: searchConditions } // Search conditions
+        ];
+        delete query.$or;
+      } else {
+        query.$or = searchConditions;
+      }
     }
 
     // Build the main query combining role-based access with filters
@@ -101,15 +112,40 @@ const getTasks = async (req, res) => {
         query = {};
       }
     }
+    // Define sorting criteria for database query
+    const priorityOrder = { high: 1, medium: 2, low: 3 };
+    let sort = {};
+    
+    // Primary sort by due date (ascending), then priority (high to low)
+    sort = { 
+      dueDate: 1,  // Ascending - earliest dates first
+      priority: 1  // Will be converted using priorityOrder mapping
+    };
 
     const tasks = await Task.find(query)
       .populate('assignee', 'name email department avatar')
       .populate('assignees', 'name email department avatar')
       .populate('createdBy', 'name email department avatar')
       .populate('comments.authorId', 'name email avatar')
-      .sort({ createdAt: -1 })
+      .sort(sort)
       .skip(skip)
       .limit(limit);
+
+    // Apply custom sorting for priority while preserving pagination
+    tasks.sort((a, b) => {
+      // First sort by due date
+      if (a.dueDate && b.dueDate) {
+        const dateA = new Date(a.dueDate).getTime();
+        const dateB = new Date(b.dueDate).getTime();
+        if (dateA !== dateB) return dateA - dateB;
+      }
+      // Put tasks with due dates before those without
+      if (a.dueDate && !b.dueDate) return -1;
+      if (!a.dueDate && b.dueDate) return 1;
+      
+      // Then sort by priority (high to low)
+      return priorityOrder[a.priority] - priorityOrder[b.priority];
+    });
 
     const total = await Task.countDocuments(query);
 

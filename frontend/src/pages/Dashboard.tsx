@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TaskPagination } from '@/components/ui/task-pagination';
 import { useAuth } from '@/contexts/AuthContext';
 import { Task, TaskStatus, TaskPriority } from '@/types/task';
 import { User } from '@/types/auth';
@@ -37,6 +38,13 @@ import {
   List
 } from 'lucide-react';
 
+interface PaginationData {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
+
 export const Dashboard = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -51,6 +59,7 @@ export const Dashboard = () => {
   const [showSessionsModal, setShowSessionsModal] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('tasks');
   const [taskLoadingStates, setTaskLoadingStates] = useState<Record<string, {
     timer?: boolean;
@@ -58,6 +67,17 @@ export const Dashboard = () => {
     delete?: boolean;
     update?: boolean;
   }>>({});
+  const [globalStats, setGlobalStats] = useState<any>(null);
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [paginationData, setPaginationData] = useState<PaginationData>({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 1
+  });
 
   // Helper function to get user ID (handles both _id and id)
   const getUserId = (user: User): string => user._id || user.id || '';
@@ -66,129 +86,52 @@ export const Dashboard = () => {
     return user._id || user.id || '';
   };
 
-  // Filter tasks based on user role
+  // Since tasks are now filtered on the backend, we use them directly
   const userTasks = useMemo(() => {
     if (!user) {
       return [];
     }
-    
-    if (user.role === 'admin') {
-      return tasks;
-    }
-    
-    const currentUserId = getCurrentUserId();
-    
-    const filtered = tasks.filter(task => {
-      // Handle both string and object assignees
-      let assigneeId = null;
-      
-      if (typeof task.assignee === 'string') {
-        assigneeId = task.assignee;
-      } else if (task.assignee && typeof task.assignee === 'object') {
-        assigneeId = task.assignee._id || task.assignee.id;
-      }
-      
-      return assigneeId === currentUserId;
-    });
-    
-    return filtered;
+    // Backend handles role-based filtering, so we can use tasks directly
+    return tasks;
   }, [tasks, user]);
 
-  // Filter tasks by selected user (admin only)
-  const adminFilteredTasks = useMemo(() => {
-    if (user?.role !== 'admin' || selectedUserId === 'all') {
-      return userTasks;
-    }
-    
-    // Filter tasks by the selected user ID
-    const filtered = userTasks.filter(task => {
-      // Handle both string and object assignees
-      let assigneeId = null;
-      
-      if (typeof task.assignee === 'string') {
-        assigneeId = task.assignee;
-      } else if (task.assignee && typeof task.assignee === 'object') {
-        assigneeId = task.assignee._id || task.assignee.id;
-      }
-      
-      return assigneeId === selectedUserId;
-    });
-    
-    return filtered;
-  }, [userTasks, selectedUserId, user?.role]);
+  // For display purposes, use the backend-filtered tasks directly
+  const displayTasks = useMemo(() => {
+    return tasks; // Backend handles all filtering including role-based access
+  }, [tasks]);
 
   // Apply filters to active tasks (non-completed)
   const filteredActiveTasks = useMemo(() => {
-    return adminFilteredTasks.filter(task => {
-      const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           task.description.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
-      const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
-      const isNotCompleted = task.status !== 'completed';
-      
-      return matchesSearch && matchesStatus && matchesPriority && isNotCompleted;
-    });
-  }, [adminFilteredTasks, searchQuery, statusFilter, priorityFilter]);
+    // For active tasks tab, the backend already excludes completed tasks
+    return activeTab === 'tasks' ? displayTasks : displayTasks.filter(task => task.status !== 'completed');
+  }, [displayTasks, activeTab]);
 
   // Apply filters to completed tasks
   const filteredCompletedTasks = useMemo(() => {
-    return adminFilteredTasks.filter(task => {
-      const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           task.description.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
-      const isCompleted = task.status === 'completed';
-      
-      return matchesSearch && matchesPriority && isCompleted;
-    });
-  }, [adminFilteredTasks, searchQuery, priorityFilter]);
+    // For completed tasks tab, the backend already filters to only completed tasks
+    return activeTab === 'completed' ? displayTasks : displayTasks.filter(task => task.status === 'completed');
+  }, [displayTasks, activeTab]);
 
   // Keep original filteredTasks for backward compatibility
   const filteredTasks = useMemo(() => {
-    return adminFilteredTasks.filter(task => {
-      const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           task.description.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
-      const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
-      
-      return matchesSearch && matchesStatus && matchesPriority;
-    });
-  }, [adminFilteredTasks, searchQuery, statusFilter, priorityFilter]);
+    return displayTasks;
+  }, [displayTasks]);
 
-  // Calculate statistics
+  // Calculate statistics from global stats API
   const stats = useMemo(() => {
-    // Use adminFilteredTasks for calculations to reflect current filter
-    const tasksForStats = user?.role === 'admin' ? adminFilteredTasks : userTasks;
-    
-    const totalTasks = tasksForStats.length;
-    const completedTasks = tasksForStats.filter(t => t.status === 'completed').length;
-    const inProgressTasks = tasksForStats.filter(t => t.status === 'in-progress').length;
-    const activeTasks = tasksForStats.filter(t => t.isTimerRunning).length;
-    const overdueTasks = tasksForStats.filter(t => 
-      t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'completed'
-    ).length;
-    const totalTimeSpent = tasksForStats.reduce((total, task) => total + task.timeSpent, 0);
-
-    if (user?.role === 'admin') {
-      const activeUsers = [...new Set(tasksForStats.map(t => t.assignee))].length;
-      return {
-        totalTasks,
-        activeUsers,
-        activeTasks,
-        totalTimeSpent: Math.floor(totalTimeSpent / 60), // Convert to hours
-      };
+    if (!globalStats) {
+      return user?.role === 'admin' 
+        ? { totalTasks: 0, activeUsers: 0, activeTasks: 0, totalTimeSpent: 0 }
+        : { totalTasks: 0, completedTasks: 0, inProgressTasks: 0, overdueTasks: 0 };
     }
-
-    return {
-      totalTasks,
-      completedTasks,
-      inProgressTasks,
-      overdueTasks,
-    };
-  }, [adminFilteredTasks, userTasks, user?.role]);
+    
+    return globalStats;
+  }, [globalStats, user?.role]);
   
   useEffect(() => {
     if (user) {  // Only fetch when user is available
-      getAllTasks();
+      getAllTasks(1, pageSize); // Reset to first page when component mounts
+      fetchGlobalStats(); // Fetch global stats
       if (user.role === 'admin') {
         fetchUsers();
       }
@@ -198,9 +141,35 @@ export const Dashboard = () => {
   // Fetch tasks whenever tab changes
   useEffect(() => {
     if (user) {
-      getAllTasks();
+      setCurrentPage(1); // Reset to first page when tab changes
+      getAllTasks(1, pageSize); // Reset to first page when tab changes
+      fetchGlobalStats(); // Refresh global stats when tab changes
     }
   }, [activeTab, user])
+
+  // Refetch tasks when filters change
+  useEffect(() => {
+    if (user) {
+      const timeoutId = setTimeout(() => {
+        setCurrentPage(1); // Reset to first page when filters change
+        getAllTasks(1, pageSize); // Reset to first page when filters change
+        fetchGlobalStats(); // Refresh global stats when filters change
+      }, 300); // Debounce search
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [searchQuery, statusFilter, priorityFilter, selectedUserId, pageSize, user])
+
+  // Handle page changes
+  const handlePageChange = (page: number) => {
+    getAllTasks(page, pageSize);
+  }
+
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    getAllTasks(1, newPageSize); // Reset to first page with new page size
+  }
   
   const fetchUsers = async () => {
     try {
@@ -221,15 +190,75 @@ export const Dashboard = () => {
     }
   }
 
-  const getAllTasks = async () => {
+  const fetchGlobalStats = async () => {
+    setStatsLoading(true);
+    try {
+      // Build query parameters for stats
+      const queryParams = new URLSearchParams();
+      
+      // Add user filter for admin
+      if (user?.role === 'admin' && selectedUserId !== 'all') {
+        queryParams.append('assignee', selectedUserId);
+      }
+
+      const url = queryParams.toString() 
+        ? `${TASK.STATS}?${queryParams.toString()}`
+        : TASK.STATS;
+        
+      const response = await getAPI(url);
+      setGlobalStats(response.data);
+    } catch (error) {
+      console.error('Failed to fetch global stats:', error);
+      toast({
+        title: "Warning",
+        description: "Failed to load statistics.",
+        variant: "destructive",
+      });
+    } finally {
+      setStatsLoading(false);
+    }
+  }
+
+  const getAllTasks = async (page: number = currentPage, limit: number = pageSize) => {
     setLoading(true);
     try {
-      const response = await getAPI(TASK.FETCH);
+      // Build query parameters
+      const queryParams = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+
+      // Add status filter based on active tab
+      if (activeTab === 'completed') {
+        queryParams.append('status', 'completed');
+      } else if (activeTab === 'tasks') {
+        // For active tasks, exclude completed
+        if (statusFilter !== 'all') {
+          queryParams.append('status', statusFilter);
+        } else {
+          queryParams.append('excludeStatus', 'completed');
+        }
+      }
+
+      // Add other filters
+      if (priorityFilter !== 'all') {
+        queryParams.append('priority', priorityFilter);
+      }
+      if (searchQuery.trim()) {
+        queryParams.append('search', searchQuery.trim());
+      }
+      if (user?.role === 'admin' && selectedUserId !== 'all') {
+        queryParams.append('assignee', selectedUserId);
+      }
+
+      const response = await getAPI(`${TASK.FETCH}?${queryParams.toString()}`);
       setTasks(response.data);
+      setPaginationData(response.pagination);
+      setCurrentPage(page);
     } catch (error) {
       toast({
         title: "Error",
-        description:error?.message,
+        description: error?.message,
         variant: "destructive",
       });
     } finally {
@@ -274,11 +303,18 @@ export const Dashboard = () => {
 
     try{
       const response = await postAPI(TASK.CREATE, backendTaskData);
-      setTasks(prev => [newTask, ...prev]);
-      toast({
-        title: "Success",
-        description: "Task created successfully",
-      });
+      
+      if (response?.data?.success) {
+        toast({
+          title: "Success",
+          description: "Task created successfully",
+        });
+        
+        // Refresh tasks list to show the new task
+        getAllTasks(1, pageSize); // Reset to first page to see new task
+        setCurrentPage(1);
+        fetchGlobalStats(); // Refresh global stats
+      }
     }
     catch(error) {
       toast({
@@ -306,18 +342,16 @@ export const Dashboard = () => {
       
       // Update task in the backend
       const response = await putAPI(TASK.UPDATE(taskId), { ...task, ...updates });
-      if(response?.success) {
+      if(response?.data?.success) {
         toast({
           title: "Success",
           description: "Task updated successfully",
         });
+        
+        // Refresh current page to reflect changes
+        getAllTasks(currentPage, pageSize);
+        fetchGlobalStats(); // Refresh global stats
       }
-      
-      setTasks(prev => prev.map(task => 
-        task._id === taskId 
-          ? { ...task, ...updates, updatedAt: new Date().toISOString() }
-          : task
-      ));
     }
     catch(error) {
       toast({
@@ -370,14 +404,23 @@ export const Dashboard = () => {
       const response = await deleteAPI(TASK.DELETE(taskId));
 
       // @ts-ignore 
-      if(response?.success) {
+      if(response?.data?.success) {
         toast({
           title: "Success",
           description: "Task deleted successfully",
         });
+        
+        // Refresh current page, but if this was the last item on the page, go to previous page
+        const remainingItems = paginationData.total - 1;
+        const maxPage = Math.ceil(remainingItems / pageSize);
+        const targetPage = currentPage > maxPage ? Math.max(1, maxPage) : currentPage;
+        
+        getAllTasks(targetPage, pageSize);
+        if (targetPage !== currentPage) {
+          setCurrentPage(targetPage);
+        }
+        fetchGlobalStats(); // Refresh global stats
       }
-      
-      setTasks(prev => prev.filter(task => task._id !== taskId));
     }
     catch(error) {
       toast({
@@ -409,11 +452,10 @@ export const Dashboard = () => {
           title: "Success",
           description: "Timer started successfully",
         });
-        setTasks(prev => prev.map(task =>
-          task._id === taskId
-            ? { ...task, ...response.data.data, status: 'in-progress' as TaskStatus, updatedAt: new Date().toISOString() }
-            : task
-        ));
+        
+        // Refresh current page to reflect timer changes
+        getAllTasks(currentPage, pageSize);
+        fetchGlobalStats(); // Refresh global stats
       }
     } catch (error) {
       toast({
@@ -444,11 +486,10 @@ export const Dashboard = () => {
           title: "Success",
           description: "Timer stopped successfully",
         });
-        setTasks(prev => prev.map(task =>
-          task._id === taskId
-            ? { ...task, ...response.data.data, updatedAt: new Date().toISOString() }
-            : task
-        ));
+        
+        // Refresh current page to reflect timer changes
+        getAllTasks(currentPage, pageSize);
+        fetchGlobalStats(); // Refresh global stats
       }
     } catch (error) {
       toast({
@@ -532,10 +573,10 @@ export const Dashboard = () => {
           {user?.role === 'admin' ? (
             <>
               <StatsCard
-                title="Total Tasks"
+                title="Active Tasks"
                 value={stats.totalTasks}
                 icon={Target}
-                description="Across all team members"
+                description="Active tasks across all team members"
               />
               <StatsCard
                 title="Active Users"
@@ -559,10 +600,10 @@ export const Dashboard = () => {
           ) : (
             <>
               <StatsCard
-                title="Total Tasks"
+                title="Active Tasks"
                 value={stats.totalTasks}
                 icon={Target}
-                description="Your assigned tasks"
+                description="Your active assigned tasks"
               />
               <StatsCard
                 title="Completed"
@@ -694,7 +735,7 @@ export const Dashboard = () => {
           <TabsContent value="tasks" className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">
-                Active Tasks ({filteredActiveTasks.length})
+                Active Tasks ({paginationData.total})
               </h2>
             </div>
 
@@ -733,6 +774,9 @@ export const Dashboard = () => {
                   {viewMode === 'kanban' ? (
                         <KanbanBoard 
                           tasks={filteredTasks} 
+                          users={users}
+                          onStartTimer={handleStartTimer}
+                          onStopTimer={handleStopTimer}
                           onUpdateTask={handleUpdateTask}
                           onDeleteTask={handleDeleteTask}
                           selectedUserId={selectedUserId}
@@ -756,6 +800,19 @@ export const Dashboard = () => {
                   )}
                 </>
               )}
+
+              {/* Pagination Controls */}
+              {!loading && (
+                <TaskPagination
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  totalItems={paginationData.total}
+                  totalPages={paginationData.pages}
+                  onPageChange={handlePageChange}
+                  onPageSizeChange={handlePageSizeChange}
+                  itemName="tasks"
+                />
+              )}
             </>
           )}
           </TabsContent>
@@ -763,7 +820,7 @@ export const Dashboard = () => {
           <TabsContent value="completed" className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">
-                Completed Tasks ({filteredCompletedTasks.length})
+                Completed Tasks ({paginationData.total})
               </h2>
             </div>
 
@@ -793,6 +850,19 @@ export const Dashboard = () => {
                   />
                 ))}
               </div>
+            )}
+
+            {/* Pagination Controls for Completed Tasks */}
+            {!loading && activeTab === 'completed' && (
+              <TaskPagination
+                currentPage={currentPage}
+                pageSize={pageSize}
+                totalItems={paginationData.total}
+                totalPages={paginationData.pages}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
+                itemName="completed tasks"
+              />
             )}
           </TabsContent>
           
