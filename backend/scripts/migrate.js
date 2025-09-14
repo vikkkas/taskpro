@@ -15,10 +15,7 @@ const runMigrationScript = async () => {
   try {
     // Connect to MongoDB
     console.log('Connecting to MongoDB...');
-    await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/taskpro', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/taskpro');
     
     console.log('Connected to MongoDB successfully');
 
@@ -50,3 +47,4 @@ const runMigrationScript = async () => {
 
 // Run the script
 runMigrationScript();
+

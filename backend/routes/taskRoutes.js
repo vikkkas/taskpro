@@ -12,7 +12,9 @@ const {
   deleteComment,
   getActiveTimers,
   getTaskAnalytics,
-  migrateData
+  migrateData,
+  migrateWorkSessions,
+  editWorkSession
 } = require('../controllers/taskController');
 const authMiddleware = require('../middleware/authMiddleware');
 const { allUsers, adminOnly } = require('../middleware/roleMiddleware');
@@ -122,8 +124,12 @@ const commentValidation = [
 router.use(authMiddleware);
 router.use(allUsers);
 
-// Stats route (must be before /:id routes)
-router.get('/stats', getTaskStats);
+// Admin only routes (must be before /:id routes to avoid conflicts)
+router.get('/active-timers', adminOnly, getActiveTimers);
+router.get('/analytics', adminOnly, getTaskAnalytics);
+router.post('/migrate', adminOnly, migrateData);
+router.post('/migrate-sessions', adminOnly, migrateWorkSessions);
+router.put('/:taskId/sessions/:sessionId', adminOnly, editWorkSession);
 
 // Task routes
 router.route('/')
@@ -142,10 +148,5 @@ router.post('/:id/timer/stop', stopTimer);
 // Comment routes
 router.post('/:id/comments', commentValidation, addComment);
 router.delete('/:id/comments/:commentId', deleteComment);
-
-// Admin only routes
-router.get('/active-timers', adminOnly, getActiveTimers);
-router.get('/analytics', adminOnly, getTaskAnalytics);
-router.post('/migrate', adminOnly, migrateData);
 
 module.exports = router;

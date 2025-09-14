@@ -8,6 +8,7 @@
     "seed": "node seeder.js",
     "seed:destroy": "node seeder.js -d",
     "migrate": "node scripts/migrate.js",
+    "migrate:sessions": "node scripts/migrateWorkSessions.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

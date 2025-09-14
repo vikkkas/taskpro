@@ -163,3 +163,4 @@ module.exports = {
   validateMigration,
   runMigration
 };
+

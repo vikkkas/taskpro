@@ -16,6 +16,15 @@ const workSessionSchema = mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User' // Track which user worked on this session
+  },
+  startedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+    // Not required for backward compatibility with existing sessions
+  },
+  stoppedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User' // Who stopped the timer (null if still running)
   }
 }, {
   timestamps: true
@@ -86,6 +95,18 @@ const taskSchema = mongoose.Schema({
     type: Number, // Total time spent in minutes
     default: 0
   },
+  activeTimers: [{
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    startedAt: {
+      type: Date,
+      required: true
+    }
+  }],
+  // Keep old fields for backward compatibility but deprecate them
   isTimerRunning: {
     type: Boolean,
     default: false
@@ -95,7 +116,7 @@ const taskSchema = mongoose.Schema({
   },
   timerStartedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User' // Track which user started the timer
+    ref: 'User'
   },
   tags: [{
     type: String,

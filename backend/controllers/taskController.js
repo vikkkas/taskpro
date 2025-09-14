@@ -29,17 +29,6 @@ const getTasks = async (req, res) => {
         { assignee: req.user._id }, // Backward compatibility
         { assignees: req.user._id } // New multiple assignees
       ];
-      
-      // If we already have a role-based $or condition, combine it with search
-      if (query.$or) {
-        query.$and = [
-          { $or: query.$or }, // Role-based conditions
-          { $or: searchConditions } // Search conditions
-        ];
-        delete query.$or;
-      } else {
-        query.$or = searchConditions;
-      }
     }
 
     // Build the main query combining role-based access with filters
@@ -125,27 +114,27 @@ const getTasks = async (req, res) => {
     const tasks = await Task.find(query)
       .populate('assignee', 'name email department avatar')
       .populate('assignees', 'name email department avatar')
+      .populate('activeTimers.userId', 'name email department avatar')
+      .populate('timerStartedBy', 'name email department avatar')
       .populate('createdBy', 'name email department avatar')
       .populate('comments.authorId', 'name email avatar')
-      .sort(sort)
+      .populate('workSessions.startedBy', 'name email department avatar')
+      .populate('workSessions.stoppedBy', 'name email department avatar')
+      .sort({ updatedAt: -1 }) // Sort by latest updates first
       .skip(skip)
       .limit(limit);
 
-    // Apply custom sorting for priority while preserving pagination
-    tasks.sort((a, b) => {
-      // First sort by due date
-      if (a.dueDate && b.dueDate) {
-        const dateA = new Date(a.dueDate).getTime();
-        const dateB = new Date(b.dueDate).getTime();
-        if (dateA !== dateB) return dateA - dateB;
-      }
-      // Put tasks with due dates before those without
-      if (a.dueDate && !b.dueDate) return -1;
-      if (!a.dueDate && b.dueDate) return 1;
-      
-      // Then sort by priority (high to low)
-      return priorityOrder[a.priority] - priorityOrder[b.priority];
-    });
+     // Apply custom sorting: latest updates first, then priority
+     tasks.sort((a, b) => {
+       // First sort by updatedAt (latest first)
+       const dateA = new Date(a.updatedAt).getTime();
+       const dateB = new Date(b.updatedAt).getTime();
+       if (dateA !== dateB) return dateB - dateA; // Latest first
+       
+       // Then sort by priority (high to low)
+       const priorityOrder = { high: 1, medium: 2, low: 3 };
+       return priorityOrder[a.priority] - priorityOrder[b.priority];
+     });
 
     const total = await Task.countDocuments(query);
 
@@ -176,8 +165,12 @@ const getTask = async (req, res) => {
     const task = await Task.findById(req.params.id)
       .populate('assignee', 'name email department avatar')
       .populate('assignees', 'name email department avatar')
+      .populate('activeTimers.userId', 'name email department avatar')
+      .populate('timerStartedBy', 'name email department avatar')
       .populate('createdBy', 'name email department avatar')
-      .populate('comments.authorId', 'name email avatar');
+      .populate('comments.authorId', 'name email avatar')
+      .populate('workSessions.startedBy', 'name email department avatar')
+      .populate('workSessions.stoppedBy', 'name email department avatar');
 
     if (!task) {
       return res.status(404).json({
@@ -262,7 +255,7 @@ const createTask = async (req, res) => {
       status,
       priority,
       dueDate,
-      assignee: assignee || null, // Backward compatibility
+      assignee: assignee || (validatedAssignees.length === 1 ? validatedAssignees[0] : null), // Backward compatibility
       assignees: validatedAssignees,
       tags,
       createdBy: req.user._id
@@ -271,6 +264,8 @@ const createTask = async (req, res) => {
     const populatedTask = await Task.findById(task._id)
       .populate('assignee', 'name email department avatar')
       .populate('assignees', 'name email department avatar')
+      .populate('activeTimers.userId', 'name email department avatar')
+      .populate('timerStartedBy', 'name email department avatar')
       .populate('createdBy', 'name email department avatar');
 
     // Send email notifications to all assigned users
@@ -308,6 +303,7 @@ const updateTask = async (req, res) => {
     const task = await Task.findById(req.params.id)
       .populate('assignee', 'name email department avatar')
       .populate('assignees', 'name email department avatar')
+      .populate('timerStartedBy', 'name email department avatar')
       .populate('createdBy', 'name email department avatar');
 
     if (!task) {
@@ -347,6 +343,8 @@ const updateTask = async (req, res) => {
           message: 'One or more assigned users not found'
         });
       }
+      // Update backward compatibility field
+      updateData.assignee = req.body.assignees.length === 1 ? req.body.assignees[0] : null;
     } else if (req.body.assignee) {
       // Backward compatibility: single assignee
       const assignedUser = await User.findById(req.body.assignee);
@@ -356,6 +354,8 @@ const updateTask = async (req, res) => {
           message: 'Assigned user not found'
         });
       }
+      // Also update assignees array for consistency
+      updateData.assignees = req.body.assignee ? [req.body.assignee] : [];
     }
 
     const updatedTask = await Task.findByIdAndUpdate(
@@ -364,6 +364,8 @@ const updateTask = async (req, res) => {
       { new: true, runValidators: true }
     ).populate('assignee', 'name email department avatar')
      .populate('assignees', 'name email department avatar')
+     .populate('activeTimers.userId', 'name email department avatar')
+     .populate('timerStartedBy', 'name email department avatar')
      .populate('createdBy', 'name email department avatar')
      .populate('comments.authorId', 'name email avatar');
 
@@ -510,22 +512,39 @@ const startTimer = async (req, res) => {
       });
     }
 
-    if (task.isTimerRunning) {
+    // Check if this specific user already has a timer running
+    const existingTimer = task.activeTimers.find(timer => 
+      timer.userId.toString() === req.user._id.toString()
+    );
+
+    if (existingTimer) {
       return res.status(400).json({
         success: false,
-        message: 'Timer is already running'
+        message: 'You already have a timer running for this task'
       });
     }
 
-    // Add current user's ID to timerStartedBy field to track who started the timer
+    // Add new timer for this user
+    task.activeTimers.push({
+      userId: req.user._id,
+      startedAt: new Date()
+    });
+
+    // Update legacy fields for backward compatibility
     task.isTimerRunning = true;
     task.timerStartedAt = new Date();
     task.timerStartedBy = req.user._id;
+
     await task.save();
+
+    // Populate the task to return user info
+    const populatedTask = await Task.findById(task._id)
+      .populate('activeTimers.userId', 'name email department avatar')
+      .populate('timerStartedBy', 'name email department avatar');
 
     res.json({
       success: true,
-      data: task,
+      data: populatedTask,
       message: 'Timer started successfully'
     });
   } catch (error) {
@@ -551,57 +570,58 @@ const stopTimer = async (req, res) => {
       });
     }
 
-    // Check if user can stop timer - only assigned users or the user who started the timer
-    const isAssignedUser = (task.assignee && task.assignee.toString() === req.user._id.toString()) ||
-                          (task.assignees && task.assignees.some(assigneeId => 
-                            assigneeId.toString() === req.user._id.toString()
-                          ));
-    
-    const isTimerStarter = task.timerStartedBy && task.timerStartedBy.toString() === req.user._id.toString();
+    // Find the user's active timer
+    const userTimerIndex = task.activeTimers.findIndex(timer => 
+      timer.userId.toString() === req.user._id.toString()
+    );
 
-    // Team members can only stop timers for tasks assigned to them or if they started the timer
-    if (req.user.role === 'team-member' && !isAssignedUser && !isTimerStarter) {
-      return res.status(403).json({
-        success: false,
-        message: 'Only assigned team members or timer starter can stop timer for this task'
-      });
-    }
-
-    // Admins can stop timers for any task
-    if (req.user.role !== 'admin' && !isAssignedUser && !isTimerStarter) {
-      return res.status(403).json({
-        success: false,
-        message: 'Only assigned users or timer starter can stop timer'
-      });
-    }
-
-    if (!task.isTimerRunning) {
+    if (userTimerIndex === -1) {
       return res.status(400).json({
         success: false,
-        message: 'Timer is not running'
+        message: 'You do not have an active timer for this task'
       });
     }
 
+    const userTimer = task.activeTimers[userTimerIndex];
     const endTime = new Date();
-    const duration = Math.round((endTime - task.timerStartedAt) / (1000 * 60)); // Duration in minutes
+    const duration = Math.round((endTime - userTimer.startedAt) / (1000 * 60)); // Duration in minutes
 
-    // Create new work session with user who worked on it
+    // Create new work session
     const workSession = {
-      startTime: task.timerStartedAt,
+      startTime: userTimer.startedAt,
       endTime: endTime,
       duration: duration,
-      userId: task.timerStartedBy || req.user._id // Track who worked on this session
+      userId: req.user._id,
+      startedBy: userTimer.userId, // Who originally started the timer
+      stoppedBy: req.user._id // Who stopped the timer
     };
 
+    // Remove the user's timer from activeTimers
+    task.activeTimers.splice(userTimerIndex, 1);
     task.workSessions.push(workSession);
-    task.isTimerRunning = false;
-    task.timerStartedAt = null;
-    task.timerStartedBy = null;
+
+    // Update legacy fields - if no more active timers, set to false
+    if (task.activeTimers.length === 0) {
+      task.isTimerRunning = false;
+      task.timerStartedAt = null;
+      task.timerStartedBy = null;
+    } else {
+      // Keep the legacy fields pointing to the first remaining active timer
+      const firstActiveTimer = task.activeTimers[0];
+      task.timerStartedAt = firstActiveTimer.startedAt;
+      task.timerStartedBy = firstActiveTimer.userId;
+    }
+
     await task.save();
+
+    // Populate the task to return user info
+    const populatedTask = await Task.findById(task._id)
+      .populate('activeTimers.userId', 'name email department avatar')
+      .populate('timerStartedBy', 'name email department avatar');
 
     res.json({
       success: true,
-      data: task,
+      data: populatedTask,
       message: 'Timer stopped successfully',
       sessionDuration: duration
     });
@@ -649,8 +669,13 @@ const addComment = async (req, res) => {
 
     const updatedTask = await Task.findById(task._id)
       .populate('assignee', 'name email department avatar')
+      .populate('assignees', 'name email department avatar')
+      .populate('activeTimers.userId', 'name email department avatar')
+      .populate('timerStartedBy', 'name email department avatar')
       .populate('createdBy', 'name email department avatar')
-      .populate('comments.authorId', 'name email avatar');
+      .populate('comments.authorId', 'name email avatar')
+      .populate('workSessions.startedBy', 'name email department avatar')
+      .populate('workSessions.stoppedBy', 'name email department avatar');
 
     // Send email notifications for new comments
     try {
@@ -796,7 +821,11 @@ const getActiveTimers = async (req, res) => {
 // @access  Private (Admin)
 const getTaskAnalytics = async (req, res) => {
   try {
-    const totalTasks = await Task.countDocuments({ isArchived: { $ne: true } });
+    const totalTasks = await Task.countDocuments({ 
+      status: { $ne: 'completed' }, 
+      isArchived: { $ne: true } 
+    });
+    const allTasks = await Task.countDocuments({ isArchived: { $ne: true } });
     const completedTasks = await Task.countDocuments({ 
       status: 'completed', 
       isArchived: { $ne: true } 
@@ -846,12 +875,13 @@ const getTaskAnalytics = async (req, res) => {
       success: true,
       data: {
         totalTasks,
+        allTasks,
         completedTasks,
         inProgressTasks,
         todoTasks,
         activeTimers,
         overdueTasks,
-        completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+        completionRate: allTasks > 0 ? Math.round((completedTasks / allTasks) * 100) : 0,
         tasksByAssignee
       }
     });
@@ -901,6 +931,171 @@ const migrateData = async (req, res) => {
   }
 };
 
+// @desc    Migrate work sessions to add startedBy field
+// @route   POST /api/tasks/migrate-sessions
+// @access  Private (Admin only)
+const migrateWorkSessions = async (req, res) => {
+  try {
+    console.log('Starting work sessions migration...');
+    
+    // Find all tasks with work sessions that don't have startedBy
+    const tasks = await Task.find({
+      'workSessions.startedBy': { $exists: false }
+    });
+    
+    console.log(`Found ${tasks.length} tasks with work sessions to migrate`);
+    
+    let updatedCount = 0;
+    
+    for (const task of tasks) {
+      let needsUpdate = false;
+      
+      for (const session of task.workSessions) {
+        if (!session.startedBy && session.userId) {
+          // Set startedBy to userId for backward compatibility
+          session.startedBy = session.userId;
+          needsUpdate = true;
+        }
+      }
+      
+      if (needsUpdate) {
+        await task.save();
+        updatedCount++;
+        console.log(`Updated task: ${task.title} (${task._id})`);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Successfully migrated work sessions for ${updatedCount} tasks`,
+      updatedCount
+    });
+    
+  } catch (error) {
+    console.error('Work sessions migration error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Work sessions migration failed'
+    });
+  }
+};
+
+// @desc    Edit work session (Admin only)
+// @route   PUT /api/tasks/:taskId/sessions/:sessionId
+// @access  Private (Admin only)
+const editWorkSession = async (req, res) => {
+  try {
+    const { taskId, sessionId } = req.params;
+    const { startTime, endTime, duration, userId, startedBy, stoppedBy } = req.body;
+
+    // Find the task
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found'
+      });
+    }
+
+    // Find the work session
+    const sessionIndex = task.workSessions.findIndex(session => 
+      session._id.toString() === sessionId
+    );
+
+    if (sessionIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Work session not found'
+      });
+    }
+
+    const session = task.workSessions[sessionIndex];
+
+    // Validate the data
+    if (startTime && new Date(startTime) > new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start time cannot be in the future'
+      });
+    }
+
+    if (endTime && new Date(endTime) > new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'End time cannot be in the future'
+      });
+    }
+
+    if (startTime && endTime && new Date(startTime) >= new Date(endTime)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start time must be before end time'
+      });
+    }
+
+    // Update the session
+    if (startTime) {
+      session.startTime = new Date(startTime);
+    }
+    if (endTime) {
+      session.endTime = new Date(endTime);
+    }
+    if (duration !== undefined) {
+      session.duration = Math.max(0, parseInt(duration)); // Ensure non-negative
+    }
+    if (userId) {
+      session.userId = userId;
+    }
+    if (startedBy) {
+      session.startedBy = startedBy;
+    }
+    if (stoppedBy !== undefined) {
+      session.stoppedBy = stoppedBy;
+    }
+
+    // Recalculate duration if both start and end times are provided
+    if (startTime && endTime) {
+      const calculatedDuration = Math.round((new Date(endTime) - new Date(startTime)) / (1000 * 60)); // Duration in minutes
+      session.duration = Math.max(0, calculatedDuration);
+    }
+
+    // Mark the session as modified
+    session.markModified('startTime');
+    session.markModified('endTime');
+    session.markModified('duration');
+    session.markModified('userId');
+    session.markModified('startedBy');
+    session.markModified('stoppedBy');
+
+    // Save the task (this will trigger the pre-save middleware to recalculate total time)
+    await task.save();
+
+    // Populate the updated task
+    const updatedTask = await Task.findById(taskId)
+      .populate('assignee', 'name email department avatar')
+      .populate('assignees', 'name email department avatar')
+      .populate('activeTimers.userId', 'name email department avatar')
+      .populate('timerStartedBy', 'name email department avatar')
+      .populate('createdBy', 'name email department avatar')
+      .populate('comments.authorId', 'name email avatar')
+      .populate('workSessions.startedBy', 'name email department avatar')
+      .populate('workSessions.stoppedBy', 'name email department avatar');
+
+    res.json({
+      success: true,
+      message: 'Work session updated successfully',
+      data: updatedTask
+    });
+
+  } catch (error) {
+    console.error('Edit work session error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update work session'
+    });
+  }
+};
+
 module.exports = {
   getTasks,
   getTask,
@@ -913,5 +1108,7 @@ module.exports = {
   deleteComment,
   getActiveTimers,
   getTaskAnalytics,
-  migrateData
+  migrateData,
+  migrateWorkSessions,
+  editWorkSession
 };
