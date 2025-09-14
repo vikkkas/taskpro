@@ -6,12 +6,15 @@ export const AUTH = {
 
 export const TASK = {
     FETCH: "/api/tasks",
-    STATS: "/api/tasks/stats",
+    ANALYTICS: "/api/tasks/analytics",
+    ACTIVE_TIMERS: "/api/tasks/active-timers",
+    MIGRATE: "/api/tasks/migrate",
     CREATE : "/api/tasks",
     UPDATE : (taskId: string) => `/api/tasks/${taskId}`,
     DELETE: (taskId: string) => `/api/tasks/${taskId}`,
     TIMER_START: (taskId: string) => `/api/tasks/${taskId}/timer/start`,
     TIMER_STOP: (taskId: string) => `/api/tasks/${taskId}/timer/stop`,
+    EDIT_SESSION: (taskId: string, sessionId: string) => `/api/tasks/${taskId}/sessions/${sessionId}`,
 }
 
 export const COMMENTS = {

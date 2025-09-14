@@ -17,9 +17,10 @@ interface SessionsListProps {
   users: User[];
   selectedUserId?: string;
   onUserFilterChange?: (userId: string) => void;
+  onSessionUpdated?: (updatedTask: Task) => void;
 }
 
-export const SessionsList = ({ tasks, users, selectedUserId, onUserFilterChange }: SessionsListProps) => {
+export const SessionsList = ({ tasks, users, selectedUserId, onUserFilterChange, onSessionUpdated }: SessionsListProps) => {
   const { user } = useAuth();
   const [selectedSession, setSelectedSession] = useState<WorkSession | null>(null);
   const [selectedTaskForSession, setSelectedTaskForSession] = useState<Task | null>(null);
@@ -68,8 +69,10 @@ export const SessionsList = ({ tasks, users, selectedUserId, onUserFilterChange 
       });
     }
     
-    // Only show tasks that have work sessions
-    return taskList.filter(task => task.workSessions.length > 0);
+    // Only show tasks that have work sessions, sorted by latest updates
+    return taskList
+      .filter(task => task.workSessions.length > 0)
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [tasks, selectedUserId, user]);
 
   const totalTimeAllTasks = useMemo(() => {
@@ -253,6 +256,8 @@ export const SessionsList = ({ tasks, users, selectedUserId, onUserFilterChange 
         session={selectedSession}
         task={selectedTaskForSession}
         users={users}
+        onSessionUpdated={onSessionUpdated}
+        userRole={user?.role}
       />
       <TaskSessionsModal
         isOpen={!!selectedTaskForList}

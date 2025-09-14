@@ -16,9 +16,19 @@ interface TaskSessionsModalProps {
   task: Task | null;
   users: User[];
   onSessionClick: (session: WorkSession, task: Task) => void;
+  onSessionUpdated?: (updatedTask: Task) => void;
+  userRole?: string;
 }
 
-export const TaskSessionsModal = ({ isOpen, onClose, task, users, onSessionClick }: TaskSessionsModalProps) => {
+export const TaskSessionsModal = ({ 
+  isOpen, 
+  onClose, 
+  task, 
+  users, 
+  onSessionClick, 
+  onSessionUpdated,
+  userRole 
+}: TaskSessionsModalProps) => {
   if (!task) {
     return null;
   }
@@ -51,6 +61,23 @@ export const TaskSessionsModal = ({ isOpen, onClose, task, users, onSessionClick
       date: date.toLocaleDateString(),
       time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
+  };
+
+  const getUserName = (user: string | { _id: string; id?: string; name: string; email: string; department: string; avatar?: string; } | null | undefined) => {
+    if (!user) {
+      return 'Unknown User';
+    }
+    
+    if (typeof user === 'string') {
+      const foundUser = users.find(u => u.id === user);
+      return foundUser?.name || 'Unknown User';
+    }
+    
+    if (typeof user === 'object') {
+      return user.name || 'Unknown User';
+    }
+    
+    return 'Unknown User';
   };
 
   return (
@@ -90,6 +117,7 @@ export const TaskSessionsModal = ({ isOpen, onClose, task, users, onSessionClick
               .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
               .map((session) => {
                 const startDateTime = formatDateTime(session.startTime);
+                const endDateTime = session.endTime ? formatDateTime(session.endTime) : null;
                 
                 return (
                   <div
@@ -97,19 +125,43 @@ export const TaskSessionsModal = ({ isOpen, onClose, task, users, onSessionClick
                     className="border rounded-md p-3 hover:bg-muted transition-colors cursor-pointer"
                     onClick={() => onSessionClick(session, task)}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Timer className="w-4 h-4 text-muted-foreground" />
-                        <div className="text-sm">
-                          <span className="font-medium">{formatTime(session.duration)}</span>
-                          <span className="text-xs text-muted-foreground ml-2">
-                            on {startDateTime.date}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Timer className="w-4 h-4 text-muted-foreground" />
+                          <div className="text-sm">
+                            <span className="font-medium">{formatTime(session.duration)}</span>
+                            <span className="text-xs text-muted-foreground ml-2">
+                              on {startDateTime.date}
+                            </span>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          Click to view details
+                        </Badge>
+                      </div>
+                      
+                      {/* Session Details */}
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        {session.startedBy && (
+                          <div className="flex items-center gap-1">
+                            <UserIcon className="w-3 h-3" />
+                            <span>Started by: <span className="font-medium text-foreground">{getUserName(session.startedBy)}</span></span>
+                          </div>
+                        )}
+                        {session.stoppedBy && (
+                          <div className="flex items-center gap-1">
+                            <UserIcon className="w-3 h-3" />
+                            <span>Stopped by: <span className="font-medium text-foreground">{getUserName(session.stoppedBy)}</span></span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          <span>
+                            {startDateTime.time} - {endDateTime ? endDateTime.time : 'Still running'}
                           </span>
                         </div>
                       </div>
-                      <Badge variant="outline" className="text-xs">
-                        Click to view details
-                      </Badge>
                     </div>
                   </div>
                 );

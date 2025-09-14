@@ -7,6 +7,8 @@ export interface WorkSession {
   endTime?: string;
   duration: number; // in minutes
   userId?: string; // Track which user worked on this session
+  startedBy?: string | { _id: string; id?: string; name: string; email: string; department: string; avatar?: string; } | null;
+  stoppedBy?: string | { _id: string; id?: string; name: string; email: string; department: string; avatar?: string; } | null;
 }
 
 export interface TaskComment {
@@ -16,6 +18,11 @@ export interface TaskComment {
   authorName: string;
   createdAt: string;
   isAdminRemark: boolean;
+}
+
+export interface ActiveTimerSession {
+  userId: string | { _id: string; id?: string; name: string; email: string; department: string; avatar?: string; };
+  startedAt: string;
 }
 
 export interface Task {
@@ -31,9 +38,11 @@ export interface Task {
   updatedAt: string;
   dueDate?: string;
   timeSpent: number; // in minutes
+  activeTimers: ActiveTimerSession[]; // Individual user timers
+  // Legacy fields for backward compatibility
   isTimerRunning: boolean;
   timerStartedAt?: string;
-  timerStartedBy?: string | { _id: string; id?: string; name: string; email: string; department: string; avatar?: string; }; // Track who started the timer
+  timerStartedBy?: string | { _id: string; id?: string; name: string; email: string; department: string; avatar?: string; };
   tags: string[];
   workSessions: WorkSession[];
   comments: TaskComment[];

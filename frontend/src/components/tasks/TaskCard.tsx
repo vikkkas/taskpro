@@ -102,9 +102,11 @@ export const TaskCard = ({
   const calculateTimeSpent = () => {
     let totalSeconds = task.timeSpent * 60; // convert minutes to seconds
 
-    if (task.isTimerRunning && task.timerStartedAt) {
+    // Add time from user's own active timer if running
+    const userTimerStartTime = getUserTimerStartTime();
+    if (userTimerStartTime) {
       const additionalSeconds = Math.floor(
-        (currentTime - new Date(task.timerStartedAt).getTime()) / 1000
+        (currentTime - new Date(userTimerStartTime).getTime()) / 1000
       );
       totalSeconds += additionalSeconds;
     }
@@ -113,10 +115,11 @@ export const TaskCard = ({
   };
 
   const formatTime = (minutes: number) => {
-    if (task.isTimerRunning && task.timerStartedAt) {
+    const userTimerStartTime = getUserTimerStartTime();
+    if (userTimerStartTime) {
       let totalSeconds = task.timeSpent * 60;
       const additionalSeconds = Math.floor(
-        (currentTime - new Date(task.timerStartedAt).getTime()) / 1000
+        (currentTime - new Date(userTimerStartTime).getTime()) / 1000
       );
       totalSeconds += additionalSeconds;
 
@@ -132,7 +135,7 @@ export const TaskCard = ({
   };
 
   const handleTimerToggle = () => {
-    if (task.isTimerRunning) {
+    if (userHasActiveTimer()) {
       onStopTimer(task._id);
     } else {
       onStartTimer(task._id);
@@ -151,6 +154,30 @@ export const TaskCard = ({
     });
     
     return isAssignedUser;
+  };
+
+  // Check if current user has an active timer for this task
+  const userHasActiveTimer = () => {
+    if (!task.activeTimers || !user) return false;
+    
+    const userId = user._id || user.id;
+    return task.activeTimers.some(timer => {
+      const timerUserId = typeof timer.userId === 'string' ? timer.userId : (timer.userId._id || timer.userId.id);
+      return timerUserId === userId;
+    });
+  };
+
+  // Get current user's timer start time for this task
+  const getUserTimerStartTime = () => {
+    if (!task.activeTimers || !user) return null;
+    
+    const userId = user._id || user.id;
+    const userTimer = task.activeTimers.find(timer => {
+      const timerUserId = typeof timer.userId === 'string' ? timer.userId : (timer.userId._id || timer.userId.id);
+      return timerUserId === userId;
+    });
+    
+    return userTimer ? userTimer.startedAt : null;
   };
 
   const handleStatusChange = (newStatus: TaskStatus) => {
@@ -246,14 +273,23 @@ export const TaskCard = ({
     <Card
       className={cn(
         "group relative overflow-hidden transition-all duration-300 hover:shadow-elegant",
-        task.isTimerRunning && "ring-2 ring-primary shadow-glow animate-pulse-glow"
+        userHasActiveTimer() && "ring-2 ring-primary shadow-glow animate-pulse-glow",
+        task.activeTimers?.length > 0 && !userHasActiveTimer() && "ring-1 ring-orange-300 bg-orange-50/30"
       )}
     >
       {/* Timer Running Indicator */}
-      {task.isTimerRunning && (
+      {userHasActiveTimer() && (
         <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 bg-primary text-primary-foreground rounded-full text-xs font-medium animate-pulse">
           <div className="w-2 h-2 bg-current rounded-full animate-ping"></div>
-          LIVE
+          YOUR TIMER
+        </div>
+      )}
+      
+      {/* Others Working Indicator */}
+      {task.activeTimers?.length > 0 && !userHasActiveTimer() && (
+        <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 bg-orange-500 text-white rounded-full text-xs font-medium">
+          <div className="w-2 h-2 bg-current rounded-full animate-pulse"></div>
+          OTHERS WORKING
         </div>
       )}
 
@@ -380,6 +416,11 @@ export const TaskCard = ({
               {assignedUsers.length === 1 
                 ? assignedUsers[0].name
                 : `${assignedUsers.length} members`}
+              {task.activeTimers && task.activeTimers.length > 0 && (
+                <span className="ml-1 text-orange-600">
+                  • {task.activeTimers.length} working
+                </span>
+              )}
             </Badge>
           )}
         </div>
@@ -392,11 +433,31 @@ export const TaskCard = ({
             <span>{formatTime(calculateTimeSpent())}</span>
           </div>
           
-          {/* Show who is running the timer */}
-          {task.isTimerRunning && task.timerStartedBy && typeof task.timerStartedBy === 'object' && (
-            <div className="flex items-center gap-1 text-xs text-primary">
-              <UserIcon className="w-3 h-3" />
-              <span>{task.timerStartedBy.name} is working</span>
+          {/* Show who is running timers - for admin view */}
+          {user?.role === 'admin' && task.activeTimers && task.activeTimers.length > 0 && (
+            <div className="flex items-center gap-1 text-xs flex-wrap">
+              {task.activeTimers.map((timer, index) => {
+                const timerUser = typeof timer.userId === 'object' ? timer.userId : null;
+                return (
+                  <div key={index} className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full">
+                    <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                    <UserIcon className="w-3 h-3" />
+                    <span className="font-medium">{timerUser?.name || 'Unknown'}</span>
+                    <span className="text-muted-foreground">working</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          
+          {/* Show user's own timer status */}
+          {user?.role === 'team-member' && userHasActiveTimer() && (
+            <div className="flex items-center gap-1 text-xs">
+              <div className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full">
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                <UserIcon className="w-3 h-3" />
+                <span className="font-medium">You are working</span>
+              </div>
             </div>
           )}
         </div>
@@ -405,15 +466,27 @@ export const TaskCard = ({
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <UserIcon className="w-3 h-3" />
             <div className="flex items-center gap-1">
-              {assignedUsers.slice(0, 2).map((user, index) => (
-                <span key={user._id || user.id} className="flex items-center gap-1">
-                  {index > 0 && <span>•</span>}
-                  <span>{user.name}</span>
-                  {user.department && (
-                    <span className="text-muted-foreground">({user.department})</span>
-                  )}
-                </span>
-              ))}
+              {assignedUsers.slice(0, 2).map((user, index) => {
+                const isCurrentlyWorking = task.isTimerRunning && 
+                  task.timerStartedBy && 
+                  typeof task.timerStartedBy === 'object' && 
+                  ((user._id || user.id) === (task.timerStartedBy._id || task.timerStartedBy.id));
+                
+                return (
+                  <span key={user._id || user.id} className="flex items-center gap-1">
+                    {index > 0 && <span>•</span>}
+                    <span className={cn(
+                      isCurrentlyWorking && "text-primary font-medium"
+                    )}>
+                      {user.name}
+                      {isCurrentlyWorking && " 🔥"}
+                    </span>
+                    {user.department && (
+                      <span className="text-muted-foreground">({user.department})</span>
+                    )}
+                  </span>
+                );
+              })}
               {assignedUsers.length > 2 && (
                 <span className="text-muted-foreground">
                   • +{assignedUsers.length - 2} more
@@ -443,7 +516,7 @@ export const TaskCard = ({
         <div className="flex items-center gap-2">
           <Button
             size="sm"
-            variant={task.isTimerRunning ? "destructive" : "default"}
+            variant={userHasActiveTimer() ? "destructive" : "default"}
             onClick={handleTimerToggle}
             className="flex items-center gap-1"
             disabled={task.status === "completed" || isLoading.timer || !canControlTimer()}
@@ -453,7 +526,7 @@ export const TaskCard = ({
                 <Loader2 className="w-3 h-3 animate-spin" />
                 <span className="text-xs">Loading...</span>
               </>
-            ) : task.isTimerRunning ? (
+            ) : userHasActiveTimer() ? (
               <>
                 <Pause className="w-3 h-3" />
                 <span className="text-xs">Stop</span>

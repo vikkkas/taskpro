@@ -34,7 +34,7 @@ export const ActiveTimers = ({ onRefresh }: ActiveTimersProps) => {
       if (showRefreshing) setRefreshing(true);
       else setLoading(true);
       
-      const response = await getAPI(`${TASK}/active-timers`);
+      const response = await getAPI(TASK.ACTIVE_TIMERS);
       if (response.success) {
         setActiveTimers(response.data);
       }
@@ -175,16 +175,17 @@ export const ActiveTimers = ({ onRefresh }: ActiveTimersProps) => {
                       </Badge>
                     </div>
                     
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-4 text-xs">
+                      <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full">
                         <UserIcon className="w-3 h-3" />
-                        <span>Started by: {getTimerStartedByName(timer)}</span>
+                        <span className="font-medium">{getTimerStartedByName(timer)}</span>
+                        <span className="text-blue-600">working</span>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 text-muted-foreground">
                         <Clock className="w-3 h-3" />
                         <span>Session: {formatDuration(timer.currentSessionDuration)}</span>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 text-muted-foreground">
                         <Timer className="w-3 h-3" />
                         <span>Total: {formatDuration(timer.totalTimeSpent)}</span>
                       </div>
@@ -243,3 +244,4 @@ export const ActiveTimers = ({ onRefresh }: ActiveTimersProps) => {
     </Card>
   );
 };
+

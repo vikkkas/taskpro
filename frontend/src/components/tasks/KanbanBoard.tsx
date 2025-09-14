@@ -46,6 +46,13 @@ export const KanbanBoard = ({ tasks, users, onUpdateTask, onDeleteTask, onStartT
       grouped[task.status].push(task);
     });
 
+    // Sort each status group by latest updates first
+    Object.keys(grouped).forEach(status => {
+      grouped[status as TaskStatus].sort((a, b) => 
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+    });
+
     return grouped;
   }, [tasks]);
 

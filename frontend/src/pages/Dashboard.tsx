@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Header } from '@/components/layout/Header';
 import { TaskCard } from '@/components/tasks/TaskCard';
 import { TaskCardSkeleton } from '@/components/tasks/TaskCardSkeleton';
@@ -92,7 +92,7 @@ export const Dashboard = () => {
       return [];
     }
     // Backend handles role-based filtering, so we can use tasks directly
-    return tasks;
+      return tasks;
   }, [tasks, user]);
 
   // For display purposes, use the backend-filtered tasks directly
@@ -102,15 +102,15 @@ export const Dashboard = () => {
 
   // Apply filters to active tasks (non-completed)
   const filteredActiveTasks = useMemo(() => {
-    // For active tasks tab, the backend already excludes completed tasks
-    return activeTab === 'tasks' ? displayTasks : displayTasks.filter(task => task.status !== 'completed');
-  }, [displayTasks, activeTab]);
+    // Always filter out completed tasks for active tasks display
+    return displayTasks.filter(task => task.status !== 'completed');
+  }, [displayTasks]);
 
   // Apply filters to completed tasks
   const filteredCompletedTasks = useMemo(() => {
-    // For completed tasks tab, the backend already filters to only completed tasks
-    return activeTab === 'completed' ? displayTasks : displayTasks.filter(task => task.status === 'completed');
-  }, [displayTasks, activeTab]);
+    // Always filter to only completed tasks for completed tasks display
+    return displayTasks.filter(task => task.status === 'completed');
+  }, [displayTasks]);
 
   // Keep original filteredTasks for backward compatibility
   const filteredTasks = useMemo(() => {
@@ -119,20 +119,98 @@ export const Dashboard = () => {
 
   // Calculate statistics from global stats API
   const stats = useMemo(() => {
-    if (!globalStats) {
-      return user?.role === 'admin' 
-        ? { totalTasks: 0, activeUsers: 0, activeTasks: 0, totalTimeSpent: 0 }
-        : { totalTasks: 0, completedTasks: 0, inProgressTasks: 0, overdueTasks: 0 };
+    console.log('Calculating stats - user role:', user?.role, 'globalStats:', globalStats);
+    console.log('Current tasks count:', tasks.length);
+    console.log('Tasks with completed status:', tasks.filter(t => t.status === 'completed').length);
+    if (user?.role === 'admin') {
+      // For admin, use globalStats if available, otherwise calculate from local data
+      if (globalStats) {
+        console.log('Using globalStats for admin:', globalStats);
+        return globalStats;
+      }
+      
+      // Calculate stats from local task data for admin
+      const activeTasks = tasks.filter(t => t.status !== 'completed').length;
+      const completedTasks = tasks.filter(t => t.status === 'completed').length;
+      
+      console.log('Fallback calculation - All tasks:', tasks.length);
+      console.log('Fallback calculation - Task statuses:', tasks.map(t => ({ id: t._id, title: t.title, status: t.status })));
+      console.log('Fallback calculation - Active tasks (should exclude completed):', activeTasks);
+      console.log('Fallback calculation - Completed tasks:', completedTasks);
+      console.log('Fallback calculation - Tasks with status !== completed:', tasks.filter(t => t.status !== 'completed').map(t => ({ id: t._id, title: t.title, status: t.status })));
+      const activeTimers = tasks.filter(t => t.activeTimers && t.activeTimers.length > 0).length;
+      const uniqueUsers = new Set(tasks.flatMap(t => 
+        [...(t.assignees || []), t.assignee].filter(Boolean)
+      )).size;
+      
+      // Calculate today's hours worked by team members
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const todaysHours = tasks.reduce((total, task) => {
+        if (!task.workSessions || !Array.isArray(task.workSessions)) return total;
+        
+        return total + task.workSessions.reduce((sessionTotal, session) => {
+          const sessionDate = new Date(session.startTime);
+          sessionDate.setHours(0, 0, 0, 0);
+          
+          // Check if session is from today
+          if (sessionDate.getTime() === today.getTime() && session.duration) {
+            return sessionTotal + session.duration;
+          }
+          return sessionTotal;
+        }, 0);
+      }, 0);
+      
+      console.log('Fallback today\'s hours calculation:', {
+        today: today.toISOString().split('T')[0],
+        todaysHours,
+        todaysHoursInHours: Math.round(todaysHours / 60 * 10) / 10
+      });
+      
+      const fallbackStats = {
+        totalTasks: activeTasks,
+        activeUsers: uniqueUsers,
+        activeTasks: activeTimers,
+        totalTimeSpent: Math.round(todaysHours / 60 * 10) / 10 // Convert to hours with 1 decimal
+      };
+      console.log('Using fallback stats calculation for admin:', fallbackStats);
+      return fallbackStats;
+    } else {
+      // For team members, calculate stats from their assigned tasks
+      const userTasks = tasks.filter(task => {
+        const isAssigned = task.assignees?.some(assignee => {
+          const assigneeId = typeof assignee === 'string' ? assignee : (assignee._id || assignee.id);
+          return assigneeId === user?.id;
+        }) || (task.assignee && (
+          typeof task.assignee === 'string' ? task.assignee === user?.id : 
+          (task.assignee._id || task.assignee.id) === user?.id
+        ));
+        return isAssigned;
+      });
+      
+      const activeTasks = userTasks.filter(t => t.status !== 'completed').length;
+      const completedTasks = userTasks.filter(t => t.status === 'completed').length;
+      const inProgressTasks = userTasks.filter(t => t.status === 'in-progress').length;
+      const overdueTasks = userTasks.filter(t => {
+        if (!t.dueDate) return false;
+        return new Date(t.dueDate) < new Date() && t.status !== 'completed';
+      }).length;
+      
+      return {
+        totalTasks: activeTasks,
+      completedTasks,
+      inProgressTasks,
+        overdueTasks
+    };
     }
-    
-    return globalStats;
-  }, [globalStats, user?.role]);
+  }, [globalStats, user?.role, tasks, user?.id]);
   
   useEffect(() => {
     if (user) {  // Only fetch when user is available
       getAllTasks(1, pageSize); // Reset to first page when component mounts
-      fetchGlobalStats(); // Fetch global stats
       if (user.role === 'admin') {
+        fetchGlobalStats(); // Fetch global stats only for admin
         fetchUsers();
       }
     }
@@ -143,7 +221,9 @@ export const Dashboard = () => {
     if (user) {
       setCurrentPage(1); // Reset to first page when tab changes
       getAllTasks(1, pageSize); // Reset to first page when tab changes
-      fetchGlobalStats(); // Refresh global stats when tab changes
+      if (user.role === 'admin') {
+        fetchGlobalStats(); // Refresh global stats when tab changes
+      }
     }
   }, [activeTab, user])
 
@@ -153,7 +233,9 @@ export const Dashboard = () => {
       const timeoutId = setTimeout(() => {
         setCurrentPage(1); // Reset to first page when filters change
         getAllTasks(1, pageSize); // Reset to first page when filters change
-        fetchGlobalStats(); // Refresh global stats when filters change
+        if (user.role === 'admin') {
+          fetchGlobalStats(); // Refresh global stats when filters change
+        }
       }, 300); // Debounce search
 
       return () => clearTimeout(timeoutId);
@@ -190,25 +272,83 @@ export const Dashboard = () => {
     }
   }
 
-  const fetchGlobalStats = async () => {
+  const fetchGlobalStats = useCallback(async () => {
+    // Only fetch analytics for admin users
+    if (user?.role !== 'admin') {
+      setStatsLoading(false);
+      return;
+    }
+
     setStatsLoading(true);
     try {
       // Build query parameters for stats
       const queryParams = new URLSearchParams();
       
       // Add user filter for admin
-      if (user?.role === 'admin' && selectedUserId !== 'all') {
+      if (selectedUserId !== 'all') {
         queryParams.append('assignee', selectedUserId);
       }
 
       const url = queryParams.toString() 
-        ? `${TASK.STATS}?${queryParams.toString()}`
-        : TASK.STATS;
+        ? `${TASK.ANALYTICS}?${queryParams.toString()}`
+        : TASK.ANALYTICS;
         
       const response = await getAPI(url);
-      setGlobalStats(response.data);
+      console.log('Analytics API response:', response);
+      console.log('API call success:', response.success);
+      console.log('API call data exists:', !!response.data);
+      if (response.success && response.data) {
+        // Transform the backend data to match frontend expectations
+        const backendData = response.data;
+        console.log('Backend analytics data:', backendData);
+        console.log('Backend totalTasks (should exclude completed):', backendData.totalTasks);
+        console.log('Backend completedTasks:', backendData.completedTasks);
+        console.log('Backend allTasks:', backendData.allTasks);
+        
+        // Calculate today's hours worked by team members
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        const todaysHours = tasks.reduce((total, task) => {
+          if (!task.workSessions || !Array.isArray(task.workSessions)) return total;
+          
+          return total + task.workSessions.reduce((sessionTotal, session) => {
+            const sessionDate = new Date(session.startTime);
+            sessionDate.setHours(0, 0, 0, 0);
+            
+            // Check if session is from today
+            if (sessionDate.getTime() === today.getTime() && session.duration) {
+              return sessionTotal + session.duration;
+            }
+            return sessionTotal;
+          }, 0);
+        }, 0);
+        
+        console.log('Today\'s hours calculation:', {
+          today: today.toISOString().split('T')[0],
+          todaysHours,
+          todaysHoursInHours: Math.round(todaysHours / 60 * 10) / 10
+        });
+        
+        const transformedStats = {
+          totalTasks: backendData.totalTasks,
+          activeUsers: backendData.tasksByAssignee?.length || 0,
+          activeTasks: backendData.activeTimers,
+          totalTimeSpent: Math.round(todaysHours / 60 * 10) / 10, // Convert to hours with 1 decimal
+          completedTasks: backendData.completedTasks,
+          inProgressTasks: backendData.inProgressTasks,
+          todoTasks: backendData.todoTasks,
+          overdueTasks: backendData.overdueTasks,
+          completionRate: backendData.completionRate
+        };
+        console.log('Transformed global stats:', transformedStats);
+        setGlobalStats(transformedStats);
+      }
     } catch (error) {
       console.error('Failed to fetch global stats:', error);
+      console.log('API call failed, will use fallback calculation');
       toast({
         title: "Warning",
         description: "Failed to load statistics.",
@@ -217,7 +357,7 @@ export const Dashboard = () => {
     } finally {
       setStatsLoading(false);
     }
-  }
+  }, [user?.role, selectedUserId, tasks]);
 
   const getAllTasks = async (page: number = currentPage, limit: number = pageSize) => {
     setLoading(true);
@@ -296,6 +436,7 @@ export const Dashboard = () => {
       dueDate: taskData.dueDate,
       tags: taskData.tags,
       timeSpent: 0,
+      activeTimers: [], // Add missing activeTimers property
       isTimerRunning: false,
       workSessions: [],
       comments: []
@@ -305,15 +446,17 @@ export const Dashboard = () => {
       const response = await postAPI(TASK.CREATE, backendTaskData);
       
       if (response?.data?.success) {
-        toast({
-          title: "Success",
-          description: "Task created successfully",
-        });
+      toast({
+        title: "Success",
+        description: "Task created successfully",
+      });
         
         // Refresh tasks list to show the new task
         getAllTasks(1, pageSize); // Reset to first page to see new task
         setCurrentPage(1);
-        fetchGlobalStats(); // Refresh global stats
+        if (user?.role === 'admin') {
+          fetchGlobalStats(); // Refresh global stats
+        }
       }
     }
     catch(error) {
@@ -343,14 +486,21 @@ export const Dashboard = () => {
       // Update task in the backend
       const response = await putAPI(TASK.UPDATE(taskId), { ...task, ...updates });
       if(response?.data?.success) {
+        // Update local state immediately for better UX
+        setTasks(prev => prev.map(t => 
+          t._id === taskId ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t
+        ));
+        
         toast({
           title: "Success",
           description: "Task updated successfully",
         });
         
-        // Refresh current page to reflect changes
+        // Refresh current page to reflect changes and get latest data
         getAllTasks(currentPage, pageSize);
-        fetchGlobalStats(); // Refresh global stats
+        if (user?.role === 'admin') {
+          fetchGlobalStats(); // Refresh global stats
+        }
       }
     }
     catch(error) {
@@ -419,7 +569,9 @@ export const Dashboard = () => {
         if (targetPage !== currentPage) {
           setCurrentPage(targetPage);
         }
-        fetchGlobalStats(); // Refresh global stats
+        if (user?.role === 'admin') {
+          fetchGlobalStats(); // Refresh global stats
+        }
       }
     }
     catch(error) {
@@ -455,7 +607,9 @@ export const Dashboard = () => {
         
         // Refresh current page to reflect timer changes
         getAllTasks(currentPage, pageSize);
-        fetchGlobalStats(); // Refresh global stats
+        if (user?.role === 'admin') {
+          fetchGlobalStats(); // Refresh global stats
+        }
       }
     } catch (error) {
       toast({
@@ -489,7 +643,9 @@ export const Dashboard = () => {
         
         // Refresh current page to reflect timer changes
         getAllTasks(currentPage, pageSize);
-        fetchGlobalStats(); // Refresh global stats
+        if (user?.role === 'admin') {
+          fetchGlobalStats(); // Refresh global stats
+        }
       }
     } catch (error) {
       toast({
@@ -591,10 +747,10 @@ export const Dashboard = () => {
                 description="Tasks currently being worked on"
               />
               <StatsCard
-                title="Total Time"
+                title="Today's Hours"
                 value={`${stats.totalTimeSpent}h`}
                 icon={BarChart3}
-                description="Time logged by the team"
+                description="Hours worked today by team members"
               />
             </>
           ) : (
@@ -735,7 +891,7 @@ export const Dashboard = () => {
           <TabsContent value="tasks" className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">
-                Active Tasks ({paginationData.total})
+                Active Tasks ({stats.totalTasks})
               </h2>
             </div>
 
@@ -761,7 +917,7 @@ export const Dashboard = () => {
                   </p>
                   {userTasks.filter(t => t.status !== 'completed').length === 0 && (
                     <Button 
-                      onClick={() => setShowCreateModal(true)}
+                      onClick={() => alert("Contact admin to create task")}
                       className="bg-gradient-primary"
                     >
                       <Plus className="w-4 h-4 mr-2" />
@@ -875,6 +1031,12 @@ export const Dashboard = () => {
               users={users}
               selectedUserId={user?.role === 'admin' ? selectedUserId : undefined}
               onUserFilterChange={user?.role === 'admin' ? setSelectedUserId : undefined}
+              onSessionUpdated={(updatedTask) => {
+                // Update the task in the current page
+                setTasks(prev => prev.map(task => 
+                  task._id === updatedTask._id ? updatedTask : task
+                ));
+              }}
             />
           </TabsContent>
           

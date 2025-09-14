@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -5,9 +6,11 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { Task, WorkSession } from '@/types/task';
 import { User } from '@/types/auth';
-import { Calendar, Clock, User as UserIcon } from 'lucide-react';
+import { Calendar, Clock, User as UserIcon, Edit } from 'lucide-react';
+import { EditWorkSessionModal } from './EditWorkSessionModal';
 
 interface SessionDetailsModalProps {
   isOpen: boolean;
@@ -15,9 +18,21 @@ interface SessionDetailsModalProps {
   session: WorkSession | null;
   task: Task | null;
   users: User[];
+  onSessionUpdated?: (updatedTask: Task) => void;
+  userRole?: string;
 }
 
-export const SessionDetailsModal = ({ isOpen, onClose, session, task, users }: SessionDetailsModalProps) => {
+export const SessionDetailsModal = ({ 
+  isOpen, 
+  onClose, 
+  session, 
+  task, 
+  users, 
+  onSessionUpdated,
+  userRole 
+}: SessionDetailsModalProps) => {
+  const [showEditModal, setShowEditModal] = useState(false);
+
   if (!session || !task) {
     return null;
   }
@@ -48,15 +63,55 @@ export const SessionDetailsModal = ({ isOpen, onClose, session, task, users }: S
     return `${hours > 0 ? `${hours}h ` : ''}${mins}m`;
   };
 
+  const getUserName = (user: string | { _id: string; id?: string; name: string; email: string; department: string; avatar?: string; } | null | undefined) => {
+    if (!user) {
+      return 'Unknown User';
+    }
+    
+    if (typeof user === 'string') {
+      const foundUser = users.find(u => u.id === user);
+      return foundUser?.name || 'Unknown User';
+    }
+    
+    if (typeof user === 'object') {
+      return user.name || 'Unknown User';
+    }
+    
+    return 'Unknown User';
+  };
+
+  const handleSessionUpdated = (updatedTask: Task) => {
+    if (onSessionUpdated) {
+      onSessionUpdated(updatedTask);
+    }
+    setShowEditModal(false);
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Work Session Details</DialogTitle>
-          <DialogDescription>
-            Details for a work session on task: "{task.title}"
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent>
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>Work Session Details</DialogTitle>
+                <DialogDescription>
+                  Details for a work session on task: "{task.title}"
+                </DialogDescription>
+              </div>
+              {userRole === 'admin' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowEditModal(true)}
+                  className="flex items-center gap-2"
+                >
+                  <Edit className="w-4 h-4" />
+                  Edit
+                </Button>
+              )}
+            </div>
+          </DialogHeader>
         <div className="py-4 space-y-4">
           <div className="flex items-center gap-4">
             <Calendar className="w-5 h-5 text-muted-foreground" />
@@ -65,13 +120,15 @@ export const SessionDetailsModal = ({ isOpen, onClose, session, task, users }: S
               <p className="text-sm text-muted-foreground">{formatDateTime(session.startTime)}</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <Calendar className="w-5 h-5 text-muted-foreground" />
-            <div>
-              <p className="font-semibold">End Time</p>
-              <p className="text-sm text-muted-foreground">{formatDateTime(session.endTime)}</p>
+          {session.endTime && (
+            <div className="flex items-center gap-4">
+              <Calendar className="w-5 h-5 text-muted-foreground" />
+              <div>
+                <p className="font-semibold">End Time</p>
+                <p className="text-sm text-muted-foreground">{formatDateTime(session.endTime)}</p>
+              </div>
             </div>
-          </div>
+          )}
           <div className="flex items-center gap-4">
             <Clock className="w-5 h-5 text-muted-foreground" />
             <div>
@@ -79,6 +136,28 @@ export const SessionDetailsModal = ({ isOpen, onClose, session, task, users }: S
               <p className="text-sm text-muted-foreground">{formatDuration(session.duration)}</p>
             </div>
           </div>
+          
+          {/* Timer Control Information */}
+          {session.startedBy && (
+            <div className="flex items-center gap-4">
+              <UserIcon className="w-5 h-5 text-muted-foreground" />
+              <div>
+                <p className="font-semibold">Timer Started By</p>
+                <p className="text-sm text-muted-foreground">{getUserName(session.startedBy)}</p>
+              </div>
+            </div>
+          )}
+          
+          {session.stoppedBy && (
+            <div className="flex items-center gap-4">
+              <UserIcon className="w-5 h-5 text-muted-foreground" />
+              <div>
+                <p className="font-semibold">Timer Stopped By</p>
+                <p className="text-sm text-muted-foreground">{getUserName(session.stoppedBy)}</p>
+              </div>
+            </div>
+          )}
+          
           {assignedUser && (
             <div className="flex items-center gap-4">
               <UserIcon className="w-5 h-5 text-muted-foreground" />
@@ -91,5 +170,16 @@ export const SessionDetailsModal = ({ isOpen, onClose, session, task, users }: S
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Edit Work Session Modal */}
+    <EditWorkSessionModal
+      isOpen={showEditModal}
+      onClose={() => setShowEditModal(false)}
+      session={session}
+      task={task}
+      users={users}
+      onSessionUpdated={handleSessionUpdated}
+    />
+  </>
   );
 };

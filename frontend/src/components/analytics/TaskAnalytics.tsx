@@ -49,18 +49,38 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
     let taskList = tasks;
     
     if (user?.role === 'admin' && selectedUserId && selectedUserId !== 'all') {
-      // Handle both string and object assignee types
+      // Handle both single assignee and multiple assignees
       taskList = taskList.filter(task => {
-        if (typeof task.assignee === 'string') {
-          return task.assignee === selectedUserId;
-        } else {
-          return task.assignee?._id === selectedUserId || task.assignee?.id === selectedUserId;
-        }
+        // Check single assignee (backward compatibility)
+        const hasSingleAssignee = typeof task.assignee === 'string' 
+          ? task.assignee === selectedUserId
+          : task.assignee?._id === selectedUserId || task.assignee?.id === selectedUserId;
+        
+        // Check multiple assignees
+        const hasMultipleAssignee = task.assignees?.some(assignee => {
+          const assigneeId = typeof assignee === 'string' ? assignee : (assignee._id || assignee.id);
+          return assigneeId === selectedUserId;
+        });
+        
+        return hasSingleAssignee || hasMultipleAssignee;
       });
     }
     
     if (user?.role === 'team-member') {
-      taskList = taskList.filter(task => task.assignee === user.id);
+      taskList = taskList.filter(task => {
+        // Check single assignee (backward compatibility)
+        const hasSingleAssignee = typeof task.assignee === 'string' 
+          ? task.assignee === user.id
+          : task.assignee?._id === user.id || task.assignee?.id === user.id;
+        
+        // Check multiple assignees
+        const hasMultipleAssignee = task.assignees?.some(assignee => {
+          const assigneeId = typeof assignee === 'string' ? assignee : (assignee._id || assignee.id);
+          return assigneeId === user.id;
+        });
+        
+        return hasSingleAssignee || hasMultipleAssignee;
+      });
     }
     
     return taskList;
@@ -79,15 +99,15 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
         const dateStr = date.toISOString().split('T')[0];
         
         const dayTasks = filteredTasks.filter(task => 
-          task.workSessions.some(session => 
-            session.startTime.startsWith(dateStr)
+          task.workSessions?.some(session => 
+            session.startTime?.startsWith(dateStr)
           )
         );
         
         const timeSpent = dayTasks.reduce((total, task) => 
-          total + task.workSessions
-            .filter(session => session.startTime.startsWith(dateStr))
-            .reduce((sum, session) => sum + session.duration, 0), 0
+          total + (task.workSessions || [])
+            .filter(session => session.startTime?.startsWith(dateStr))
+            .reduce((sum, session) => sum + (session.duration || 0), 0), 0
         );
         
         const tasksCompleted = dayTasks.filter(task => 
@@ -109,15 +129,15 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
         const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         
         const monthTasks = filteredTasks.filter(task => 
-          task.workSessions.some(session => 
-            session.startTime.startsWith(monthStr)
+          task.workSessions?.some(session => 
+            session.startTime?.startsWith(monthStr)
           )
         );
         
         const timeSpent = monthTasks.reduce((total, task) => 
-          total + task.workSessions
-            .filter(session => session.startTime.startsWith(monthStr))
-            .reduce((sum, session) => sum + session.duration, 0), 0
+          total + (task.workSessions || [])
+            .filter(session => session.startTime?.startsWith(monthStr))
+            .reduce((sum, session) => sum + (session.duration || 0), 0), 0
         );
         
         const tasksCompleted = monthTasks.filter(task => 
@@ -138,15 +158,15 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
         const yearStr = year.toString();
         
         const yearTasks = filteredTasks.filter(task => 
-          task.workSessions.some(session => 
-            session.startTime.startsWith(yearStr)
+          task.workSessions?.some(session => 
+            session.startTime?.startsWith(yearStr)
           )
         );
         
         const timeSpent = yearTasks.reduce((total, task) => 
-          total + task.workSessions
-            .filter(session => session.startTime.startsWith(yearStr))
-            .reduce((sum, session) => sum + session.duration, 0), 0
+          total + (task.workSessions || [])
+            .filter(session => session.startTime?.startsWith(yearStr))
+            .reduce((sum, session) => sum + (session.duration || 0), 0), 0
         );
         
         const tasksCompleted = yearTasks.filter(task => 
@@ -196,7 +216,7 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
   // Overall stats
   const overallStats = useMemo(() => {
     const totalTime = filteredTasks.reduce((total, task) => 
-      total + task.workSessions.reduce((sum, session) => sum + session.duration, 0), 0
+      total + (task.workSessions || []).reduce((sum, session) => sum + (session.duration || 0), 0), 0
     );
     
     const completedTasks = filteredTasks.filter(task => task.status === 'completed').length;
@@ -214,13 +234,49 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
   const activeUsers = useMemo(() => {
     if (user?.role !== 'admin') return [];
     return users.filter(u => tasks.some(task => {
-      if (typeof task.assignee === 'string') {
-        return task.assignee === u.id;
-      } else {
-        return task.assignee?._id === u.id || task.assignee?.id === u.id;
-      }
+      // Check single assignee (backward compatibility)
+      const hasSingleAssignee = typeof task.assignee === 'string' 
+        ? task.assignee === u.id
+        : task.assignee?._id === u.id || task.assignee?.id === u.id;
+      
+      // Check multiple assignees
+      const hasMultipleAssignee = task.assignees?.some(assignee => {
+        const assigneeId = typeof assignee === 'string' ? assignee : (assignee._id || assignee.id);
+        return assigneeId === u.id;
+      });
+      
+      return hasSingleAssignee || hasMultipleAssignee;
     }));
   }, [user?.role, tasks, users]);
+
+  // Show empty state if no tasks
+  if (filteredTasks.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">Task Analytics</h2>
+            <p className="text-muted-foreground">
+              Performance insights and trends
+            </p>
+          </div>
+        </div>
+        
+        <div className="py-12 text-center">
+          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-muted">
+            <BarChart3 className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <h3 className="mb-2 text-lg font-medium">No data available</h3>
+          <p className="text-muted-foreground">
+            {user?.role === 'admin' 
+              ? 'No tasks found for the selected team member or time period.'
+              : 'You don\'t have any assigned tasks yet.'
+            }
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -339,7 +395,7 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
               <div className="text-center">
                 <div className="text-2xl font-bold text-purple-600">
                   {Math.round(filteredTasks.reduce((total, task) => 
-                    total + task.workSessions.reduce((sum, session) => sum + session.duration, 0), 0
+                    total + (task.workSessions || []).reduce((sum, session) => sum + (session.duration || 0), 0), 0
                   ) / 60 * 10) / 10}h
                 </div>
                 <div className="text-sm text-muted-foreground">Time Spent</div>
@@ -351,10 +407,12 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
 
       {/* Overview Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Clock className="w-5 h-5 text-primary" />
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Clock className="w-5 h-5 text-primary" />
+              </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Time</p>
                 <p className="text-2xl font-bold">{overallStats.totalTime}h</p>
@@ -363,10 +421,12 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
           </CardContent>
         </Card>
         
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Target className="w-5 h-5 text-success" />
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-success/10">
+                <Target className="w-5 h-5 text-success" />
+              </div>
               <div>
                 <p className="text-sm text-muted-foreground">Completed</p>
                 <p className="text-2xl font-bold">{overallStats.completedTasks}</p>
@@ -375,10 +435,12 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
           </CardContent>
         </Card>
         
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-warning" />
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-warning/10">
+                <TrendingUp className="w-5 h-5 text-warning" />
+              </div>
               <div>
                 <p className="text-sm text-muted-foreground">Avg Time/Task</p>
                 <p className="text-2xl font-bold">{overallStats.avgTimePerTask}h</p>
@@ -387,10 +449,12 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
           </CardContent>
         </Card>
         
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Activity className="w-5 h-5 text-accent" />
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-accent/10">
+                <Activity className="w-5 h-5 text-accent" />
+              </div>
               <div>
                 <p className="text-sm text-muted-foreground">This {timePeriod.slice(0, -2)}</p>
                 <p className="text-2xl font-bold">{overallStats.activeThisPeriod}h</p>
@@ -407,108 +471,158 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
           <TabsTrigger value="distribution">Distribution</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="trends" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <TabsContent value="trends" className="space-y-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {/* Time Tracking Chart */}
-            <Card>
-              <CardHeader>
+            <Card className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5" />
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <BarChart3 className="w-5 h-5 text-primary" />
+                  </div>
                   Time Tracking ({timePeriod})
                 </CardTitle>
               </CardHeader>
-              <CardContent> 
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={timeSeriesData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="period" />
-                    <YAxis />
-                    <Tooltip 
-                      formatter={(value, name) => [`${value}h`, name === 'timeSpent' ? 'Hours' : 'Tasks']}
-                      contentStyle={{ color: '#000', background: '#fff', borderRadius: 8, border: '1px solid #eee' }}
-                      itemStyle={{ color: '#000' }}
-                      labelStyle={{ color: '#000' }}
-                    />
-                    <Bar dataKey="timeSpent" fill="hsl(var(--primary))" />
-                  </BarChart>
-                </ResponsiveContainer>
+              <CardContent className="pt-0"> 
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={timeSeriesData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                      <XAxis 
+                        dataKey="period" 
+                        className="text-xs"
+                        tick={{ fontSize: 12 }}
+                      />
+                      <YAxis 
+                        className="text-xs"
+                        tick={{ fontSize: 12 }}
+                      />
+                      <Tooltip 
+                        formatter={(value, name) => [`${value}h`, name === 'timeSpent' ? 'Hours' : 'Tasks']}
+                        contentStyle={{ 
+                          color: 'hsl(var(--foreground))', 
+                          background: 'hsl(var(--card))', 
+                          borderRadius: 8, 
+                          border: '1px solid hsl(var(--border))',
+                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                        }}
+                        itemStyle={{ color: 'hsl(var(--foreground))' }}
+                        labelStyle={{ color: 'hsl(var(--foreground))' }}
+                      />
+                      <Bar 
+                        dataKey="timeSpent" 
+                        fill="hsl(var(--primary))" 
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </CardContent>
             </Card>
 
             {/* Task Completion Chart */}
-            <Card>
-              <CardHeader>
+            <Card className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-2">
-                  <Activity className="w-5 h-5" />
+                  <div className="p-2 rounded-lg bg-success/10">
+                    <Activity className="w-5 h-5 text-success" />
+                  </div>
                   Task Completion ({timePeriod})
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={timeSeriesData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="period" />
-                    <YAxis />
-                    <Tooltip 
-                      formatter={(value) => [`${value}`, 'Tasks Completed']}
-                      contentStyle={{ color: '#000', background: '#fff', borderRadius: 8, border: '1px solid #eee' }}
-                      itemStyle={{ color: '#000' }}
-                      labelStyle={{ color: '#000' }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="tasksCompleted" 
-                      stroke="hsl(var(--success))" 
-                      strokeWidth={3}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+              <CardContent className="pt-0">
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={timeSeriesData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                      <XAxis 
+                        dataKey="period" 
+                        className="text-xs"
+                        tick={{ fontSize: 12 }}
+                      />
+                      <YAxis 
+                        className="text-xs"
+                        tick={{ fontSize: 12 }}
+                      />
+                      <Tooltip 
+                        formatter={(value) => [`${value}`, 'Tasks Completed']}
+                        contentStyle={{ 
+                          color: 'hsl(var(--foreground))', 
+                          background: 'hsl(var(--card))', 
+                          borderRadius: 8, 
+                          border: '1px solid hsl(var(--border))',
+                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                        }}
+                        itemStyle={{ color: 'hsl(var(--foreground))' }}
+                        labelStyle={{ color: 'hsl(var(--foreground))' }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="tasksCompleted" 
+                        stroke="hsl(var(--success))" 
+                        strokeWidth={3}
+                        dot={{ fill: 'hsl(var(--success))', strokeWidth: 2, r: 4 }}
+                        activeDot={{ r: 6, stroke: 'hsl(var(--success))', strokeWidth: 2 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
         
-        <TabsContent value="distribution" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <TabsContent value="distribution" className="space-y-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {/* Status Distribution */}
-            <Card>
-              <CardHeader>
+            <Card className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-2">
-                  <PieChartIcon className="w-5 h-5" />
+                  <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/20">
+                    <PieChartIcon className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  </div>
                   Task Status Distribution
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={statusData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {statusData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      contentStyle={{ color: '#000', background: '#fff', borderRadius: 8, border: '1px solid #eee' }}
-                      itemStyle={{ color: '#000' }}
-                      labelStyle={{ color: '#000' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="flex justify-center gap-4 mt-4">
+              <CardContent className="pt-0">
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={statusData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={100}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {statusData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ 
+                          color: 'hsl(var(--foreground))', 
+                          background: 'hsl(var(--card))', 
+                          borderRadius: 8, 
+                          border: '1px solid hsl(var(--border))',
+                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                        }}
+                        itemStyle={{ color: 'hsl(var(--foreground))' }}
+                        labelStyle={{ color: 'hsl(var(--foreground))' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex flex-wrap justify-center gap-4 mt-4">
                   {statusData.map((entry) => (
-                    <div key={entry.name} className="flex items-center gap-2">
+                    <div key={entry.name} className="flex items-center gap-2 px-3 py-1 rounded-full bg-muted">
                       <div 
                         className="w-3 h-3 rounded-full" 
                         style={{ backgroundColor: entry.color }}
                       />
-                      <span className="text-sm">{entry.name}: {entry.value}</span>
+                      <span className="text-sm font-medium">{entry.name}: {entry.value}</span>
                     </div>
                   ))}
                 </div>
@@ -516,44 +630,54 @@ export const TaskAnalytics = ({ tasks, users, selectedUserId, onUserFilterChange
             </Card>
 
             {/* Priority Distribution */}
-            <Card>
-              <CardHeader>
+            <Card className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-2">
-                  <Target className="w-5 h-5" />
+                  <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/20">
+                    <Target className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                  </div>
                   Priority Distribution
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={priorityData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {priorityData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      contentStyle={{ color: '#000', background: '#fff', borderRadius: 8, border: '1px solid #eee' }}
-                      itemStyle={{ color: '#000' }}
-                      labelStyle={{ color: '#000' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="flex justify-center gap-4 mt-4">
+              <CardContent className="pt-0">
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={priorityData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={100}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {priorityData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ 
+                          color: 'hsl(var(--foreground))', 
+                          background: 'hsl(var(--card))', 
+                          borderRadius: 8, 
+                          border: '1px solid hsl(var(--border))',
+                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                        }}
+                        itemStyle={{ color: 'hsl(var(--foreground))' }}
+                        labelStyle={{ color: 'hsl(var(--foreground))' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex flex-wrap justify-center gap-4 mt-4">
                   {priorityData.map((entry) => (
-                    <div key={entry.name} className="flex items-center gap-2">
+                    <div key={entry.name} className="flex items-center gap-2 px-3 py-1 rounded-full bg-muted">
                       <div 
                         className="w-3 h-3 rounded-full" 
                         style={{ backgroundColor: entry.color }}
                       />
-                      <span className="text-sm">{entry.name}: {entry.value}</span>
+                      <span className="text-sm font-medium">{entry.name}: {entry.value}</span>
                     </div>
                   ))}
                 </div>
